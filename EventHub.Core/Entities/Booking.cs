@@ -1,0 +1,9 @@
+namespace EventHub.Core.Entities;
+
+public class Booking: BaseEntity {
+    public Guid UserId { get; set; }
+    public User? User { get; set; }
+    public Guid TicketId { get; set; }
+    public Ticket? Ticket { get; set; }
+    public string Status { get; set; } = "Pending";
+}
