@@ -20,4 +20,16 @@ public class AppDbContext: DbContext {
         }
         return base.SaveChangesAsync(cancellationToken);
     }
+    
+    protected override void OnModelCreating(ModelBuilder modelBuilder) {
+        modelBuilder.Entity<User>()
+            .Property(u => u.Role)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<Booking>()
+            .Property(b => b.Status)
+            .HasConversion<string>();
+        
+        base.OnModelCreating(modelBuilder);
+    }
 }

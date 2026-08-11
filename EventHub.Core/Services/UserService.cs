@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Identity;
 namespace EventHub.Core.Services;
 
 public class UserService(
-    IRepository<User> userRepository, 
+    IUserRepository userRepository, 
     IPasswordHasher<User> passwordHasher) 
 {
     public async Task<PagedResult<User>> GetPagedAsync(int page, int pageSize) {
@@ -44,5 +44,13 @@ public class UserService(
         userRepository.Update(user);
         await userRepository.SaveChangesAsync();
         return user;
+    }
+
+    public async Task<User?> VerifyPasswordAsync(string email, string password) {
+        var user = await userRepository.GetByEmailAsync(email);
+        if (user == null) return null;
+
+        var result = passwordHasher.VerifyHashedPassword(user, user.PasswordHash, password);
+        return result ==  PasswordVerificationResult.Success ? user : null;
     }
 }

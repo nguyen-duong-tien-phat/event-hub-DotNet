@@ -1,7 +1,9 @@
-using EventHub.Core.Entities;
+using EventHub.Core.Common;
+using EventHub.Core.Enums;
 using EventHub.Core.Services;
 using EventHub.Core.Services.Models;
 using EventHub.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventHub.Controllers;
@@ -9,33 +11,41 @@ namespace EventHub.Controllers;
 [ApiController]
 [Route("users")]
 public class UsersController(UserService userService): ControllerBase {
+    [Authorize(Roles = nameof(UserRole.Admin))]
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] PaginationQuery query) {
-        var result = await userService.GetPagedAsync(query.Page, query.PageSize);
-        return Ok(result);
+        var result = await userService.GetPagedAsync(query.Page, query.PageSize); 
+        var response = new PagedResult<UserResponseDto> {
+            Items = result.Items.Select(UserResponseDto.FromEntity).ToList(),
+            Page = result.Page,
+            PageSize = result.PageSize,
+            TotalCount = result.TotalCount
+        };
+
+        return Ok(response);
     }
     
     [HttpGet("{id:guid}")]
-    public async Task<ActionResult<List<User>>> GetById(Guid id) {
+    public async Task<ActionResult<UserResponseDto>> GetById(Guid id) {
         var user = await userService.GetByIdAsync(id);
         if (user == null) return NotFound();
-        return Ok(user);
+        return Ok(UserResponseDto.FromEntity(user));
     }
 
     [HttpPost]
-    public async Task<ActionResult<User>> Create(CreateUserDto dto) {
+    public async Task<ActionResult<UserResponseDto>> Create(CreateUserDto dto) {
         var user = await userService.CreateAsync(new CreateUserRequest {
             Email = dto.Email,
             Password = dto.Password,
             FullName = dto.FullName,
         });
-        return Ok(user);
+        return Ok(UserResponseDto.FromEntity(user));
     }
     
     [HttpPatch("{id:guid}/become-organizer")]
-    public async Task<ActionResult<User>> BecomeOrganizer(Guid id) {
+    public async Task<ActionResult<UserResponseDto>> BecomeOrganizer(Guid id) {
         var user = await userService.BecomeOrganizerAsync(id);
         if (user == null) return NotFound();
-        return Ok(user);
+        return Ok(UserResponseDto.FromEntity(user));
     }
 }
