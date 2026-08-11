@@ -10,4 +10,14 @@ public class AppDbContext: DbContext {
     public DbSet<Event> Events => Set<Event>();
     public DbSet<Ticket> Tickets => Set<Ticket>();
     public DbSet<Booking> Bookings => Set<Booking>();
+    
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) {
+        var entries = ChangeTracker.Entries<BaseEntity>()
+            .Where(e => e.State == EntityState.Modified);
+
+        foreach (var entry in entries) {
+            entry.Entity.UpdatedAt = DateTime.UtcNow;
+        }
+        return base.SaveChangesAsync(cancellationToken);
+    }
 }
