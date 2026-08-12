@@ -1,0 +1,22 @@
+using EventHub.Core.Entities;
+
+namespace EventHub.DTOs;
+
+public class CreateBookingDto {
+    public Guid TicketId { get; set; }
+    public int Quantity { get; set; } = 1;
+}
+
+public class BookingResponseDto {
+    public Guid Id { get; set; }
+    public Guid TicketId { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+
+    public static BookingResponseDto FromEntity(Booking booking) => new() {
+        Id = booking.Id,
+        TicketId = booking.TicketId,
+        Status = booking.Status.ToString(),
+        CreatedAt = booking.CreatedAt
+    };
+}
