@@ -1,4 +1,3 @@
-using EventHub.Core.Common;
 using EventHub.Core.Entities;
 using EventHub.Core.Interfaces;
 using EventHub.Core.Services.Models;

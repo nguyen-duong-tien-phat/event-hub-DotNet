@@ -1,6 +1,111 @@
-@EventHub_HostAddress = http://localhost:5033
+@baseUrl = https://localhost:5001
+@token = 
 
-GET {{EventHub_HostAddress}}/weatherforecast/
-Accept: application/json
+### =========================================
+### AUTH
+### ========================================= 
 
-###
+### Login (copy the returned token into @token above to use in protected requests)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "organizer@example.com",
+  "password": "yourpassword"
+}
+
+
+### =========================================
+### USERS
+### =========================================
+
+### Create a user (signup)
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+
+{
+  "email": "organizer@example.com",
+  "fullName": "Jane Organizer",
+  "password": "yourpassword"
+}
+
+### Get all users (paged)
+GET {{baseUrl}}/api/users?page=1&pageSize=10
+Authorization: Bearer {{token}}
+
+### Get user by id (replace {id})
+GET {{baseUrl}}/api/users/{id}
+Authorization: Bearer {{token}}
+
+### Promote a user to Organizer (replace {id})
+PATCH {{baseUrl}}/api/users/{id}/become-organizer
+Authorization: Bearer {{token}}
+
+
+### =========================================
+### EVENTS
+### =========================================
+
+### Create an event (replace organizerId with a real user id)
+POST {{baseUrl}}/api/events
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "title": "Tech Conference 2026",
+  "description": "A conference about backend engineering and distributed systems",
+  "startsAt": "2026-09-15T09:00:00Z",
+  "location": "Ho Chi Minh City",
+  "organizerId": "00000000-0000-0000-0000-000000000000"
+}
+
+### Get all events (paged)
+GET {{baseUrl}}/api/events?page=1&pageSize=10
+Authorization: Bearer {{token}}
+
+### Get event by id (replace {id})
+GET {{baseUrl}}/api/events/{id}
+Authorization: Bearer {{token}}
+
+### Update an event (partial - only send fields you want to change) (replace {id})
+PATCH {{baseUrl}}/api/events/{id}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "title": "Tech Conference 2026 (Updated)"
+}
+
+
+### =========================================
+### TICKETS
+### =========================================
+
+### Create a ticket (replace eventId with a real event id)
+POST {{baseUrl}}/api/tickets
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "eventId": "00000000-0000-0000-0000-000000000000",
+  "type": "General",
+  "price": 25.00,
+  "totalQuantity": 100
+}
+
+### Get tickets for an event (replace {eventId})
+GET {{baseUrl}}/api/tickets/by-event/{eventId}
+Authorization: Bearer {{token}}
+
+### Get ticket by id (replace {id})
+GET {{baseUrl}}/api/tickets/{id}
+Authorization: Bearer {{token}}
+
+### Update a ticket (partial) (replace {id})
+PATCH {{baseUrl}}/api/tickets/{id}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "price": 30.00
+}

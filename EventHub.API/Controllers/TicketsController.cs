@@ -1,14 +1,15 @@
 using EventHub.Core.Services;
 using EventHub.Core.Services.Models;
 using EventHub.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventHub.Controllers;
 
 [ApiController]
 [Route("tickets")]
+[Authorize(Roles = "Admin, Organizer")]
 public class TicketsController(TicketService ticketService) : ControllerBase {
-    // GET api/tickets/by-event/{eventId}
     [HttpGet("by-event/{eventId}")]
     public async Task<IActionResult> GetByEvent(Guid eventId) {
         var tickets = await ticketService.GetByEventIdAsync(eventId);

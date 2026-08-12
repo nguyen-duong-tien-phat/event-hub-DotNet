@@ -10,8 +10,9 @@ namespace EventHub.Controllers;
 
 [ApiController]
 [Route("users")]
+[Authorize(Roles = "Admin")]
 public class UsersController(UserService userService): ControllerBase {
-    [Authorize(Roles = nameof(UserRole.Admin))]
+    [Authorize(Roles = "Admin")]
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] PaginationQuery query) {
         var result = await userService.GetPagedAsync(query.Page, query.PageSize); 

@@ -1,6 +1,8 @@
+using EventHub.Core.Enums;
 using EventHub.Core.Services;
 using EventHub.Core.Services.Models;
 using EventHub.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventHub.Controllers;
@@ -20,6 +22,7 @@ public class EventsController(EventService eventService) : ControllerBase {
         return ev == null ? NotFound() : Ok(ev);
     }
 
+    [Authorize(Roles = "Admin, Organizer")]
     [HttpPost]
     public async Task<IActionResult> Create(CreateEventDto dto) {
         var newEvent = await eventService.CreateAsync(new CreateEventRequest {
@@ -32,6 +35,7 @@ public class EventsController(EventService eventService) : ControllerBase {
         return CreatedAtAction(nameof(GetById), new { id = newEvent.Id }, newEvent);
     }
 
+    [Authorize(Roles = "Admin, Organizer")]
     [HttpPatch("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, UpdateEventDto dto) {
         var updated = await eventService.UpdateAsync(id, new UpdateEventRequest {
