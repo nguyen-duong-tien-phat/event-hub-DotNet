@@ -8,7 +8,7 @@ using EventHub.DTOs;
 namespace EventHub.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("bookings")]
 [Authorize]
 public class BookingsController(BookingService bookingService) : ControllerBase {
     [HttpPost]

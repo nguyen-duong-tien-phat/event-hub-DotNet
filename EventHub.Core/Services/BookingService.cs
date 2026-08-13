@@ -5,20 +5,35 @@ using EventHub.Core.Services.Models;
 
 namespace EventHub.Core.Services;
 
-public class BookingService(IBookingRepository bookingRepository, ITicketRepository ticketRepository) {
+public class BookingService (
+    IBookingRepository bookingRepository, 
+    ITicketRepository ticketRepository,
+    IUnitOfWork unitOfWork) 
+{
     public async Task<Booking?> CreateAsync(CreateBookingRequest request) {
-        var reserved = await ticketRepository.TryReserveAsync(request.TicketId, request.Quantity);
-        if (!reserved) return null; // sold out, or not enough remaining
+        await unitOfWork.BeginTransactionAsync();
+        try {
+            var reserved = await ticketRepository.TryReserveAsync(request.TicketId, request.Quantity);
+            if (!reserved) { // sold out, or not enough remaining
+                await unitOfWork.RollbackAsync();
+                return null;
+            } 
 
-        var booking = new Booking {
-            UserId = request.UserId,
-            TicketId = request.TicketId,
-            Status = BookingStatus.Confirmed
-        };
+            var booking = new Booking {
+                UserId = request.UserId,
+                TicketId = request.TicketId,
+                Status = BookingStatus.Confirmed
+            };
 
-        await bookingRepository.AddAsync(booking);
-        await bookingRepository.SaveChangesAsync();
-        return booking;
+            await bookingRepository.AddAsync(booking);
+            await bookingRepository.SaveChangesAsync();
+            await unitOfWork.CommitAsync();
+            return booking;
+        }
+        catch (Exception e) {
+            await unitOfWork.RollbackAsync();
+            throw;
+        }
     }
 
     public Task<List<Booking>> GetByUserIdAsync(Guid userId) => bookingRepository.GetByUserIdAsync(userId);
