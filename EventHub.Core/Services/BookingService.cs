@@ -22,6 +22,7 @@ public class BookingService (
             var booking = new Booking {
                 UserId = request.UserId,
                 TicketId = request.TicketId,
+                Quantity = request.Quantity,
                 Status = BookingStatus.Confirmed
             };
 

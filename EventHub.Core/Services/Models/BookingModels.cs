@@ -1,3 +1,5 @@
+using EventHub.Core.Entities;
+
 namespace EventHub.Core.Services.Models;
 
 public class CreateBookingRequest {

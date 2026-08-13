@@ -7,5 +7,6 @@ public class Booking: BaseEntity {
     public User? User { get; set; }
     public Guid TicketId { get; set; }
     public Ticket? Ticket { get; set; }
+    public int Quantity { get; set; } = 1;
     public BookingStatus Status { get; set; } = BookingStatus.Pending;
 }
