@@ -16,13 +16,7 @@ public class UsersController(UserService userService): ControllerBase {
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] PaginationQuery query) {
         var result = await userService.GetPagedAsync(query.Page, query.PageSize); 
-        var response = new PagedResult<UserResponseDto> {
-            Items = result.Items.Select(UserResponseDto.FromEntity).ToList(),
-            Page = result.Page,
-            PageSize = result.PageSize,
-            TotalCount = result.TotalCount
-        };
-
+        var response = result.Map(UserResponseDto.FromEntity);
         return Ok(response);
     }
     
