@@ -11,6 +11,11 @@ public class BookingService (
     IUnitOfWork unitOfWork) 
 {
     public async Task<Booking?> CreateAsync(CreateBookingRequest request) {
+        var ticket = await ticketRepository.GetByIdAsync(request.TicketId);
+        if (ticket == null) {
+            throw new KeyNotFoundException("Ticket not found");
+        }
+        
         await unitOfWork.BeginTransactionAsync();
         try {
             var reserved = await ticketRepository.TryReserveAsync(request.TicketId, request.Quantity);

@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EventHub.Core", "EventHub.C
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EventHub.Infrastructure", "EventHub.Infrastructure\EventHub.Infrastructure.csproj", "{A3A392F2-1624-435C-A34A-D55F2A31AE48}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EventHub.Tests", "EventHub.Tests\EventHub.Tests.csproj", "{E13CF92C-4BD9-4AC8-9EFD-3819C9F42C47}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{A3A392F2-1624-435C-A34A-D55F2A31AE48}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A3A392F2-1624-435C-A34A-D55F2A31AE48}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A3A392F2-1624-435C-A34A-D55F2A31AE48}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E13CF92C-4BD9-4AC8-9EFD-3819C9F42C47}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E13CF92C-4BD9-4AC8-9EFD-3819C9F42C47}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E13CF92C-4BD9-4AC8-9EFD-3819C9F42C47}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E13CF92C-4BD9-4AC8-9EFD-3819C9F42C47}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
