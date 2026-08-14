@@ -5,27 +5,34 @@ namespace EventHub.DTOs;
 
 public class CreateEventDto
 {
-    [Required]
+    [Required(ErrorMessage = "Title is required")]
+    [MaxLength(200)]
     public string Title { get; set; } = string.Empty;
-    
-    [Required]
+
+    [MaxLength(2000)]
     public string Description { get; set; } = string.Empty;
-    
-    [Required]
-    [FutureDate(1, ErrorMessage = "Events must be scheduled at least 1 day in advance")]
+
+    [FutureDate(1, ErrorMessage = "Event must start at least 1 day from now")]
     public DateTime StartsAt { get; set; }
-    
-    [Required]
+
+    [Required(ErrorMessage = "Location is required")]
+    [MaxLength(300)]
     public string Location { get; set; } = string.Empty;
-    
-    [Required]
+
+    [Required(ErrorMessage = "OrganizerId is required")]
     public Guid OrganizerId { get; set; }
 }
 
-public class UpdateEventDto
-{
+public class UpdateEventDto {
+    [MaxLength(200)]
     public string? Title { get; set; }
+
+    [MaxLength(2000)]
     public string? Description { get; set; }
+
+    [FutureDate(1, ErrorMessage = "Event must start at least 1 day from now")]
     public DateTime? StartsAt { get; set; }
+
+    [MaxLength(300)]
     public string? Location { get; set; }
 }

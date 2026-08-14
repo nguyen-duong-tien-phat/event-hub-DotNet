@@ -1,11 +1,17 @@
+using System.ComponentModel.DataAnnotations;
 using EventHub.Core.Entities;
 
 namespace EventHub.DTOs;
 
 public class CreateUserDto {
+    [Required, EmailAddress]
     public string Email { get; set; } = string.Empty;
-    public string Password { get; set; } = string.Empty;
+
+    [Required, MaxLength(200)]
     public string FullName { get; set; } = string.Empty;
+
+    [Required, MinLength(8, ErrorMessage = "Password must be at least 8 characters")]
+    public string Password { get; set; } = string.Empty;
 }
 
 public class UserResponseDto {
