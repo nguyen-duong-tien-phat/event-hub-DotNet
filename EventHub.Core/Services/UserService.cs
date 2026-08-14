@@ -27,7 +27,7 @@ public class UserService(
         var user = new User {
             Email = request.Email,
             FullName = request.FullName,
-            Role = UserRole.Attendee
+            Role = request.Role ?? UserRole.Attendee
         };
         user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
 
