@@ -18,4 +18,12 @@ public class RedisCacheService(IConnectionMultiplexer redis): ICacheService {
     public async Task RemoveAsync(string key) {
         await _db.KeyDeleteAsync(key);
     }
+    
+    public async Task RemoveByPrefixAsync(string prefix) {
+        var server = redis.GetServer(redis.GetEndPoints().First());
+        var keys = server.Keys(pattern: $"{prefix}*");
+        foreach (var key in keys) {
+            await _db.KeyDeleteAsync(key);
+        }
+    }
 }

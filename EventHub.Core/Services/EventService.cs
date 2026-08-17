@@ -6,9 +6,11 @@ using EventHub.Core.Services.Models;
 
 namespace EventHub.Core.Services;
 
-public class EventService(IRepository<Event> eventRepository, ICacheService cache) {
+public class EventsService(IRepository<Event> eventRepository, ICacheService cache) {
+    private readonly string _cacheKeyPrefix = "events:";
+    
     public async Task<PagedResult<Event>> GetPagedAsync(int page, int pageSize) {
-        var cacheKey = $"events:page={page}:pageSize={pageSize}";
+        var cacheKey = $"{_cacheKeyPrefix}page={page}:pageSize={pageSize}";
         var cached = await cache.GetAsync(cacheKey);
         if (cached != null) {
             return JsonSerializer.Deserialize<PagedResult<Event>>(cached)!;
@@ -27,6 +29,7 @@ public class EventService(IRepository<Event> eventRepository, ICacheService cach
 
     public Task<Event?> GetByIdAsync(Guid id) => eventRepository.GetByIdAsync(id);
 
+
     public async Task<Event> CreateAsync(CreateEventRequest request) {
         var newEvent = new Event {
             Title = request.Title,
@@ -38,6 +41,9 @@ public class EventService(IRepository<Event> eventRepository, ICacheService cach
 
         await eventRepository.AddAsync(newEvent);
         await eventRepository.SaveChangesAsync();
+
+        await cache.RemoveByPrefixAsync(_cacheKeyPrefix);
+        
         return newEvent;
     }
 
@@ -52,6 +58,9 @@ public class EventService(IRepository<Event> eventRepository, ICacheService cach
 
         eventRepository.Update(existing);
         await eventRepository.SaveChangesAsync();
+        
+        await cache.RemoveByPrefixAsync(_cacheKeyPrefix);
+        
         return existing;
     }
 }

@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using EventHub.Core.Enums;
+using EventHub.Core.Interfaces;
 using EventHub.DTOs;
 using EventHub.Core.Services;
 using EventHub.Core.Services.Models;
@@ -9,9 +10,19 @@ namespace EventHub.Controllers;
 
 [ApiController]
 [Route("auth")]
-public class AuthController(UserService userService, TokenService tokenService) : ControllerBase {
+public class AuthController(UserService userService, TokenService tokenService, IRateLimiter rateLimiter) : ControllerBase {
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginDto dto) {
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var rateLimitKey = $"rateLimit:login:{ipAddress}";
+
+        var allowed =
+            await rateLimiter.IsAllowedAsync(rateLimitKey, maxAttempts: 5, window: TimeSpan.FromMicroseconds(1));
+
+        if (!allowed) {
+            return StatusCode(429, new { message = "Too many login attempts. Try again later." });
+        }
+
         var user = await userService.VerifyPasswordAsync(dto.Email, dto.Password);
         if (user == null) return Unauthorized(new { message = "Invalid email or password" });
 

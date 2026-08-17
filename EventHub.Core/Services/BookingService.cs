@@ -45,7 +45,7 @@ public class BookingService (
 
     public Task<List<Booking>> GetByUserIdAsync(Guid userId) => bookingRepository.GetByUserIdAsync(userId);
     
-    public async Task<PagedResult<Booking>> GetByUserIdAsync(Guid userId, int page, int pageSize) {
+    public async Task<PagedResult<Booking>> GetPagedByUserIdAsync(Guid userId, int page, int pageSize) {
         var (items, totalCount) = await bookingRepository.GetPagedByUserIdAsync(userId, page, pageSize);
         return new PagedResult<Booking> {
             Items = items,

@@ -40,7 +40,7 @@ public class BookingsController(BookingService bookingService) : ControllerBase 
         var userIdClaim = User.FindFirst(JwtRegisteredClaimNames.Sub)!;
         var userId = Guid.Parse(userIdClaim.Value);
 
-        var result = await bookingService.GetByUserIdAsync(userId, query.Page, query.PageSize);
+        var result = await bookingService.GetPagedByUserIdAsync(userId, query.Page, query.PageSize);
         return Ok(result.Map(BookingResponseDto.FromEntity));
     }
     

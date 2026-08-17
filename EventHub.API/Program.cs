@@ -21,6 +21,7 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(builder
 builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
 
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
+builder.Services.AddScoped<IRateLimiter, RedisRateLimiter>();
 
 // JWT
 var jwtKey = builder.Configuration["Jwt:Key"]!;
@@ -54,7 +55,7 @@ builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<ITicketRepository, TicketRepository>();
 builder.Services.AddScoped<TicketService>();
 builder.Services.AddScoped<IBookingRepository, BookingRepository>();
-builder.Services.AddScoped<EventService>();
+builder.Services.AddScoped<EventsService>();
 builder.Services.AddScoped<BookingService>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 

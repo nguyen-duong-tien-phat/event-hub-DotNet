@@ -9,23 +9,23 @@ namespace EventHub.Controllers;
 
 [ApiController]
 [Route("events")]
-public class EventsController(EventService eventService) : ControllerBase {
+public class EventsController(EventsService eventsService) : ControllerBase {
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] PaginationQuery query) {
-        var result = await eventService.GetPagedAsync(query.Page, query.PageSize);
+        var result = await eventsService.GetPagedAsync(query.Page, query.PageSize);
         return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id) {
-        var ev = await eventService.GetByIdAsync(id);
+        var ev = await eventsService.GetByIdAsync(id);
         return ev == null ? NotFound() : Ok(ev);
     }
 
     [Authorize(Roles = "Admin, Organizer")]
     [HttpPost]
     public async Task<IActionResult> Create(CreateEventDto dto) {
-        var newEvent = await eventService.CreateAsync(new CreateEventRequest {
+        var newEvent = await eventsService.CreateAsync(new CreateEventRequest {
             Title = dto.Title,
             Description = dto.Description,
             StartsAt = dto.StartsAt,
@@ -38,7 +38,7 @@ public class EventsController(EventService eventService) : ControllerBase {
     [Authorize(Roles = "Admin, Organizer")]
     [HttpPatch("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, UpdateEventDto dto) {
-        var updated = await eventService.UpdateAsync(id, new UpdateEventRequest {
+        var updated = await eventsService.UpdateAsync(id, new UpdateEventRequest {
             Title = dto.Title,
             Description = dto.Description,
             StartsAt = dto.StartsAt,
