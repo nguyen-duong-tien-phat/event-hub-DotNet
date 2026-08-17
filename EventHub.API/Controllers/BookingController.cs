@@ -34,18 +34,20 @@ public class BookingsController(BookingService bookingService) : ControllerBase 
         return booking == null ? NotFound() : Ok(BookingResponseDto.FromEntity(booking));
     }
     
-    [Authorize(Roles = "Admin, Attendee")]
+    [Authorize(Roles = "Attendee")]
     [HttpGet("me")]
-    public async Task<IActionResult> GetMyBookings() {
-        var userId = Guid.Parse(User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value);
-        var bookings = await bookingService.GetByUserIdAsync(userId);
-        return Ok(bookings.Select(BookingResponseDto.FromEntity));
+    public async Task<IActionResult> GetMyBookings([FromQuery] PaginationQuery query) {
+        var userIdClaim = User.FindFirst(JwtRegisteredClaimNames.Sub)!;
+        var userId = Guid.Parse(userIdClaim.Value);
+
+        var result = await bookingService.GetByUserIdAsync(userId, query.Page, query.PageSize);
+        return Ok(result.Map(BookingResponseDto.FromEntity));
     }
     
     [Authorize(Roles = "Admin, Organizer")]
     [HttpGet("by-event/{eventId}")]
-    public async Task<IActionResult> GetByEvent(Guid eventId) {
-        var bookings = await bookingService.GetByEventIdAsync(eventId);
-        return Ok(bookings.Select(BookingResponseDto.FromEntity));
+    public async Task<IActionResult> GetByEvent([FromQuery] PaginationQuery query, Guid eventId) {
+        var result = await bookingService.GetPagedByEventIdAsync(eventId, query.Page, query.PageSize);
+        return Ok(result.Map(BookingResponseDto.FromEntity));
     }
 }

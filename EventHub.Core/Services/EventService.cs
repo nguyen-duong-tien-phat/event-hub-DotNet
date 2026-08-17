@@ -1,3 +1,4 @@
+using System.Text.Json;
 using EventHub.Core.Common;
 using EventHub.Core.Entities;
 using EventHub.Core.Interfaces;
@@ -5,15 +6,23 @@ using EventHub.Core.Services.Models;
 
 namespace EventHub.Core.Services;
 
-public class EventService(IRepository<Event> eventRepository) {
+public class EventService(IRepository<Event> eventRepository, ICacheService cache) {
     public async Task<PagedResult<Event>> GetPagedAsync(int page, int pageSize) {
+        var cacheKey = $"events:page={page}:pageSize={pageSize}";
+        var cached = await cache.GetAsync(cacheKey);
+        if (cached != null) {
+            return JsonSerializer.Deserialize<PagedResult<Event>>(cached)!;
+        }
+
         var (items, totalCount) = await eventRepository.GetPagedAsync(page, pageSize);
-        return new PagedResult<Event> {
+        var result = new PagedResult<Event> {
             Items = items,
             Page = page,
             PageSize = pageSize,
             TotalCount = totalCount
         };
+        await cache.SetAsync(cacheKey, JsonSerializer.Serialize(result), TimeSpan.FromMinutes(5));
+        return result;
     }
 
     public Task<Event?> GetByIdAsync(Guid id) => eventRepository.GetByIdAsync(id);

@@ -1,3 +1,4 @@
+using EventHub.Core.Common;
 using EventHub.Core.Entities;
 using EventHub.Core.Interfaces;
 using EventHub.Core.Services.Models;
@@ -9,6 +10,16 @@ public class TicketService(ITicketRepository ticketRepository) {
         ticketRepository.GetByEventIdAsync(eventId);
 
     public Task<Ticket?> GetByIdAsync(Guid id) => ticketRepository.GetByIdAsync(id);
+    
+    public async Task<PagedResult<Ticket>> GetPagedByEventIdAsync(Guid evenId, int page, int pageSize) {
+        var (items, totalCount) = await ticketRepository.GetPagedByEventIdAsync(evenId, page, pageSize);
+        return new PagedResult<Ticket> {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
+    }
 
     public async Task<Ticket> CreateAsync(CreateTicketRequest request) {
         var ticket = new Ticket {

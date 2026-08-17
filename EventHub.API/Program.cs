@@ -2,6 +2,7 @@ using System.Text;
 using EventHub.Core.Entities;
 using EventHub.Core.Interfaces;
 using EventHub.Core.Services;
+using EventHub.Infrastructure.Caching;
 using EventHub.Infrastructure.Data;
 using EventHub.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -9,6 +10,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +18,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
+
+builder.Services.AddScoped<ICacheService, RedisCacheService>();
 
 // JWT
 var jwtKey = builder.Configuration["Jwt:Key"]!;

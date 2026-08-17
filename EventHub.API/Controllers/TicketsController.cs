@@ -11,9 +11,9 @@ namespace EventHub.Controllers;
 [Authorize(Roles = "Admin, Organizer")]
 public class TicketsController(TicketService ticketService) : ControllerBase {
     [HttpGet("by-event/{eventId}")]
-    public async Task<IActionResult> GetByEvent(Guid eventId) {
-        var tickets = await ticketService.GetByEventIdAsync(eventId);
-        return Ok(tickets);
+    public async Task<IActionResult> GetByEvent([FromQuery] PaginationQuery query, Guid eventId) {
+        var result = await ticketService.GetPagedByEventIdAsync(eventId,  query.Page,  query.PageSize);
+        return Ok(result);
     }
 
     [HttpGet("{id:guid}")]

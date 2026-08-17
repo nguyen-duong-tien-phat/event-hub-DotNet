@@ -1,3 +1,4 @@
+using EventHub.Core.Common;
 using EventHub.Core.Entities;
 using EventHub.Core.Enums;
 using EventHub.Core.Interfaces;
@@ -43,8 +44,27 @@ public class BookingService (
     }
 
     public Task<List<Booking>> GetByUserIdAsync(Guid userId) => bookingRepository.GetByUserIdAsync(userId);
+    
+    public async Task<PagedResult<Booking>> GetByUserIdAsync(Guid userId, int page, int pageSize) {
+        var (items, totalCount) = await bookingRepository.GetPagedByUserIdAsync(userId, page, pageSize);
+        return new PagedResult<Booking> {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
+    }
 
     public Task<Booking?> GetByIdAsync(Guid id) => bookingRepository.GetByIdAsync(id);
     
     public Task<List<Booking>> GetByEventIdAsync(Guid eventId) => bookingRepository.GetByEventIdAsync(eventId);
+    public async Task<PagedResult<Booking>> GetPagedByEventIdAsync(Guid evenId, int page, int pageSize) {
+        var (items, totalCount) = await bookingRepository.GetPagedByEventIdAsync(evenId, page, pageSize);
+        return new PagedResult<Booking> {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
+    }
 }
