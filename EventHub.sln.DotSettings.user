@@ -4,5 +4,6 @@
 	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=d94582f5_002D4435_002D42ff_002D8c1a_002D74465a288cca/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" IsActive="True" Name="CreateASync_WhenTicketAvailable_CreatesBookingSuccessfully" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;
   &lt;TestAncestor&gt;
     &lt;TestId&gt;xUnit::E13CF92C-4BD9-4AC8-9EFD-3819C9F42C47::net10.0::EventHub.Tests.BookingServiceTests&lt;/TestId&gt;
+    &lt;TestId&gt;xUnit::E13CF92C-4BD9-4AC8-9EFD-3819C9F42C47::net10.0::EventHub.Tests.AuthControllerTest&lt;/TestId&gt;
   &lt;/TestAncestor&gt;
 &lt;/SessionState&gt;</s:String></wpf:ResourceDictionary>

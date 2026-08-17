@@ -20,6 +20,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\EventHub.API\EventHub.API.csproj" />
       <ProjectReference Include="..\EventHub.Core\EventHub.Core.csproj" />
     </ItemGroup>
 
