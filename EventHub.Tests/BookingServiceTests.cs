@@ -3,6 +3,7 @@ using EventHub.Core.Enums;
 using EventHub.Core.Interfaces;
 using EventHub.Core.Services;
 using EventHub.Core.Services.Models;
+using EventHub.Infrastructure.Payments;
 using Moq;
 
 namespace EventHub.Tests;
@@ -19,9 +20,16 @@ public class BookingServiceTests {
             .ReturnsAsync(true);
         ticketRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>()))
             .ReturnsAsync(new Ticket { Id = Guid.NewGuid(), RemainingQuantity = 10 });
+        
+        var paymentService = new Mock<IPaymentService>();
+        paymentService
+            .Setup(r => r.CreatePaymentIntentAsync(It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<Guid>()))
+            .ReturnsAsync(new PaymentIntentResult {
+                PaymentIntentId = "paymentIntentId",
+                ClientSecret = "clientSecret",
+            });
 
-
-        var service = new BookingService(bookingRepo.Object, ticketRepo.Object, unitOfWork.Object);
+        var service = new BookingService(bookingRepo.Object, ticketRepo.Object, unitOfWork.Object, paymentService.Object);
 
         var request = new CreateBookingRequest {
             UserId = Guid.NewGuid(),
@@ -34,7 +42,7 @@ public class BookingServiceTests {
         
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(BookingStatus.Confirmed, result.Status);
+        Assert.Equal(BookingStatus.Pending, result.Booking.Status);
         bookingRepo.Verify(r => r.AddAsync(It.IsAny<Booking>()), Times.Once);
         unitOfWork.Verify(u => u.CommitAsync(), Times.Once);
     }
@@ -52,7 +60,7 @@ public class BookingServiceTests {
             .ReturnsAsync(new Ticket { Id = Guid.NewGuid(), RemainingQuantity = 10 });
 
         
-        var service = new BookingService(bookingRepo.Object, ticketRepo.Object, unitOfWork.Object);
+        var service = new BookingService(bookingRepo.Object, ticketRepo.Object, unitOfWork.Object, new StripePaymentService());
 
         var request = new CreateBookingRequest {
             UserId = Guid.NewGuid(),
@@ -79,7 +87,7 @@ public class BookingServiceTests {
         ticketRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>()))
             .ReturnsAsync((Ticket?)null);
 
-        var service = new BookingService(bookingRepo.Object, ticketRepo.Object, unitOfWork.Object);
+        var service = new BookingService(bookingRepo.Object, ticketRepo.Object, unitOfWork.Object, new StripePaymentService());
 
         var request = new CreateBookingRequest {
             UserId = Guid.NewGuid(),
