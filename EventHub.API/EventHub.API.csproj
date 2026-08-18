@@ -1,11 +1,12 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <RootNamespace>EventHub</RootNamespace>
-    </PropertyGroup>
+      <UserSecretsId>bec8c2c0-cd8f-4676-812f-e1fab2c7fbc1</UserSecretsId>
+  </PropertyGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\EventHub.Core\EventHub.Core.csproj" />

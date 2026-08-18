@@ -1,4 +1,3 @@
-version: "3.9"
 services:
   postgres:
     image: postgres:16
@@ -23,12 +22,13 @@ services:
     ports:
       - "8080:8080"
     environment:
-      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=eventhub;Username=eventhub;Password=eventhub_dev"
+      ConnectionStrings__DefaultConnection: ${DB_CONNECTION}
       ConnectionStrings__Redis: "redis:6379"
-      Jwt__Key: "this-is-a-dev-only-secret-key-change-me-later-32chars+"
+      Jwt__Key: ${JWT_KEY}
       Jwt__Issuer: "EventHub"
       Jwt__Audience: "EventHubUsers"
       Jwt__ExpiryMinutes: "60"
+      Stripe__SecretKey: ${STRIPE_SECRET_KEY}
     depends_on:
       - postgres
       - redis
