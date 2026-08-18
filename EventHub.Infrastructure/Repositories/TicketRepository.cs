@@ -23,4 +23,10 @@ public class TicketRepository(AppDbContext db) : Repository<Ticket>(db), ITicket
         );
         return rowsAffected > 0;
     }
+    
+    public async Task ReleaseAsync(Guid ticketId, int quantity) {
+        await Db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE \"Tickets\" SET \"RemainingQuantity\" = \"RemainingQuantity\" + {quantity} WHERE \"Id\" = {ticketId}"
+        );
+    }
 }

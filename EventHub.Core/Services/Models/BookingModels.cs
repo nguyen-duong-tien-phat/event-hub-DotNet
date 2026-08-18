@@ -7,3 +7,8 @@ public class CreateBookingRequest {
     public Guid TicketId { get; set; }
     public int Quantity { get; set; } = 1;
 }
+
+public class BookingWithPaymentResult {
+    public Booking Booking { get; set; } = null!;
+    public string ClientSecret { get; set; } = string.Empty;
+}
