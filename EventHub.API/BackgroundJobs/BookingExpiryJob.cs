@@ -1,10 +1,9 @@
-using EventHub.Core.Interfaces;
 using EventHub.Core.Services;
 
 namespace EventHub.BackgroundJobs;
 
 public class BookingExpiryJob(IServiceScopeFactory scopeFactory): BackgroundService {
-    private static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan CheckInterval = TimeSpan.FromHours(12);
     private static readonly TimeSpan ExpiryThreshold = TimeSpan.FromMinutes(15);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
