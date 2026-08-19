@@ -12,15 +12,15 @@ public class StripePaymentService: IPaymentService {
             Currency = currency,
             Metadata = new Dictionary<string, string> {
                 {"bookingId", bookingId.ToString()}
+            },
+            AutomaticPaymentMethods = new PaymentIntentAutomaticPaymentMethodsOptions {
+                Enabled = true,
+                AllowRedirects = "never"
             }
         };
 
-        var requestOptions = new RequestOptions {
-            IdempotencyKey = bookingId.ToString(),
-        };
-
         var service = new PaymentIntentService();
-        var intent = await service.CreateAsync(options, requestOptions);
+        var intent = await service.CreateAsync(options);
         return new PaymentIntentResult {
             PaymentIntentId = intent.Id,
             ClientSecret = intent.ClientSecret

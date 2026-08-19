@@ -8,4 +8,5 @@ public interface IBookingRepository : IRepository<Booking> {
     Task<(List<Booking> Items, int TotalCount)> GetPagedByUserIdAsync(Guid userId, int page, int pageSize);
     Task<List<Booking>> GetByEventIdAsync(Guid eventId);
     Task<(List<Booking> Items, int TotalCount)> GetPagedByEventIdAsync(Guid eventId, int page, int pageSize);
+    Task<Booking?> GetByPaymentIntentId(string paymentIntentId);
 }

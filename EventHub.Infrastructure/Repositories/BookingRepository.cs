@@ -39,4 +39,7 @@ public class BookingRepository(AppDbContext db) : Repository<Booking>(db), IBook
 
         return (items, totalCount);
     }
+
+    public async Task<Booking?> GetByPaymentIntentId(string paymentIntentId) =>
+        await Db.Bookings.FirstOrDefaultAsync(b => b.PaymentIntentId == paymentIntentId);
 }

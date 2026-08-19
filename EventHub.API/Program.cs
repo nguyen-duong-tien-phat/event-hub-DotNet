@@ -15,6 +15,8 @@ using StackExchange.Redis;
 using Stripe;
 using TokenService = EventHub.Core.Services.TokenService;
 
+DotNetEnv.Env.Load();
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
