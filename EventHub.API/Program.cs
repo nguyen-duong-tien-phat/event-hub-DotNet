@@ -1,4 +1,5 @@
 using System.Text;
+using EventHub.BackgroundJobs;
 using EventHub.Core.Entities;
 using EventHub.Core.Interfaces;
 using EventHub.Core.Services;
@@ -68,6 +69,8 @@ builder.Services.AddScoped<IBookingRepository, BookingRepository>();
 builder.Services.AddScoped<EventsService>();
 builder.Services.AddScoped<BookingService>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+builder.Services.AddHostedService<BookingExpiryJob>();
 
 var app = builder.Build();
 

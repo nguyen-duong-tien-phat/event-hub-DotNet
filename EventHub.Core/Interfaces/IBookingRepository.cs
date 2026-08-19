@@ -9,4 +9,5 @@ public interface IBookingRepository : IRepository<Booking> {
     Task<List<Booking>> GetByEventIdAsync(Guid eventId);
     Task<(List<Booking> Items, int TotalCount)> GetPagedByEventIdAsync(Guid eventId, int page, int pageSize);
     Task<Booking?> GetByPaymentIntentId(string paymentIntentId);
+    Task<List<Booking>> GetExpiredPendingBookingsAsync(DateTime olderThan);
 }

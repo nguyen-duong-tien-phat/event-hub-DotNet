@@ -125,4 +125,23 @@ public class BookingService (
             throw;
         }
     }
+    
+    public async Task ExpireAbandonedBookingAsync(TimeSpan expiryThreshold) {
+        var cutoff = DateTime.UtcNow - expiryThreshold;
+        var expiredBookings = await bookingRepository.GetExpiredPendingBookingsAsync(cutoff);
+
+        foreach (var booking in expiredBookings) {
+            await unitOfWork.BeginTransactionAsync();
+            try {
+                booking.Status = BookingStatus.Cancelled;
+                bookingRepository.Update(booking);
+                await ticketRepository.ReleaseAsync(booking.TicketId, booking.Quantity);
+                await bookingRepository.SaveChangesAsync();
+                await unitOfWork.CommitAsync();
+            }
+            catch {
+                await unitOfWork.RollbackAsync();
+            }
+        }
+    }
 }

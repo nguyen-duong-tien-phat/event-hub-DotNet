@@ -1,5 +1,6 @@
 using EventHub.Core.Common;
 using EventHub.Core.Entities;
+using EventHub.Core.Enums;
 using EventHub.Core.Interfaces;
 using EventHub.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -42,4 +43,10 @@ public class BookingRepository(AppDbContext db) : Repository<Booking>(db), IBook
 
     public async Task<Booking?> GetByPaymentIntentId(string paymentIntentId) =>
         await Db.Bookings.FirstOrDefaultAsync(b => b.PaymentIntentId == paymentIntentId);
+
+    public async Task<List<Booking>> GetExpiredPendingBookingsAsync(DateTime olderThan) =>
+        await Db.Bookings
+            .Where(b => b.Status == BookingStatus.Pending && b.CreatedAt < olderThan)
+            .ToListAsync();
+
 }
