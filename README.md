@@ -7,9 +7,12 @@ A backend API for event ticketing and booking, built with ASP.NET Core (.NET 10)
 - **ASP.NET Core 10** (Web API, controllers)
 - **PostgreSQL 16** (via Npgsql)
 - **Entity Framework Core** (ORM, migrations)
+- **Redis 7** (caching, rate limiting)
+- **Stripe** (payments, PaymentIntents, webhooks)
 - **JWT Bearer Authentication** (role-based authorization)
 - **xUnit + Moq** (unit tests)
-- **Docker + Docker Compose** (containerized API + database)
+- **k6** (load testing)
+- **Docker + Docker Compose** (containerized API + Postgres + Redis)
 
 ## Architecture
 
@@ -74,6 +77,25 @@ The concurrency guarantee is verified two ways:
 - Concurrency-safe Booking creation
 - Input validation via data annotations, including a custom `[FutureDate]` attribute
 - Password hashing via `IPasswordHasher<T>`
+- Stripe payment integration with idempotent PaymentIntent creation and webhook-driven confirmation
+- Redis-backed caching (cache-aside, invalidated on write) and rate limiting (Fixed Window)
+- Background job that automatically expires abandoned pending bookings and releases their reserved inventory
+
+## Payment flow
+
+Booking and payment are decoupled to avoid holding a database lock during a network call to Stripe:
+
+1. `POST /api/bookings` atomically reserves the ticket (see below), creates a `Booking` with `Status = Pending`, then requests a Stripe PaymentIntent for the total amount. The response includes a `clientSecret` for the frontend to complete payment directly with Stripe.
+2. The PaymentIntent is created with an **idempotency key** (the booking's id), so a retried request against Stripe can't create a duplicate charge.
+3. If PaymentIntent creation itself fails, the reservation is released and the booking is cancelled — a failed payment setup should never hold inventory hostage.
+4. Stripe confirms payment asynchronously via a webhook (`POST /api/webhooks/stripe`). The handler verifies the request's signature before trusting anything in it, then updates the booking to `Confirmed` or `Cancelled` (releasing the ticket on failure).
+5. The webhook handler is idempotent: it checks the booking is still `Pending` before acting, since Stripe may redeliver the same event more than once.
+6. A `BackgroundService` periodically finds bookings that have sat in `Pending` for too long (abandoned checkouts) and expires them, releasing their reserved tickets back into inventory.
+
+## Redis usage
+
+- **Caching**: `GET /api/events` results are cached (cache-aside pattern), invalidated on any Event create/update so reads never serve stale data past a write.
+- **Rate limiting**: login attempts are limited per IP (Fixed Window algorithm, via Redis `INCR`/`EXPIRE`), returning `429` once exceeded.
 
 ## Running locally
 
@@ -81,10 +103,20 @@ The concurrency guarantee is verified two ways:
 docker compose up --build
 ```
 
-This starts both the PostgreSQL database and the API. Once running:
+This starts PostgreSQL, Redis, and the API together. Once running:
 
 - API: `http://localhost:8080`
 - Swagger UI: `http://localhost:8080/swagger`
+
+### Testing the Stripe webhook locally
+
+Requires the [Stripe CLI](https://stripe.com/docs/stripe-cli):
+
+```bash
+stripe listen --forward-to localhost:8080/api/webhooks/stripe
+```
+
+This prints a webhook signing secret (`whsec_...`) — set it as `Stripe:WebhookSecret` in `appsettings.Development.json`.
 
 ### Running migrations
 
@@ -111,17 +143,20 @@ k6 run load-test.js
 
 ```
 EventHub/
-├── EventHub.Api/              Controllers, DTOs, validation attributes, JWT config
-├── EventHub.Core/             Entities, enums, service layer, repository interfaces
-├── EventHub.Infrastructure/   DbContext, repository implementations, migrations
+├── EventHub.Api/              Controllers, DTOs, validation attributes, JWT config,
+│                               background jobs (booking expiry)
+├── EventHub.Core/             Entities, enums, service layer, repository interfaces,
+│                               ICacheService / IRateLimiter / IPaymentService abstractions
+├── EventHub.Infrastructure/   DbContext, repository implementations, migrations,
+│                               Redis cache/rate-limiter, Stripe payment service
 ├── EventHub.Tests/            xUnit tests
-├── docker-compose.yml
+├── docker-compose.yml         Postgres + Redis + API
 ├── Dockerfile
 └── load-test.js
 ```
 
 ## What's next
 
-- Redis caching for event listings + rate limiting
-- Stripe payment integration
-- CI pipeline (GitHub Actions running `dotnet test` on push)
+- Automated tests for the payment and webhook flow
+- Structured logging (`ILogger`, replacing ad-hoc `Console.WriteLine` debug statements)
+- Asynchronous email notifications on booking confirmation
