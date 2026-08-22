@@ -157,6 +157,7 @@ EventHub/
 
 ## What's next
 
+- A Flutter mobile client consuming this API (auth, event browsing, booking, Stripe payment)
 - Automated tests for the payment and webhook flow
 - Structured logging (`ILogger`, replacing ad-hoc `Console.WriteLine` debug statements)
 - Asynchronous email notifications on booking confirmation
