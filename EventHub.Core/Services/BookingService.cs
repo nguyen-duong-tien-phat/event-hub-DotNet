@@ -70,9 +70,9 @@ public class BookingService (
         }
     }
 
-    public Task<List<Booking>> GetByUserIdAsync(Guid userId) => bookingRepository.GetByUserIdAsync(userId);
+    public Task<List<Booking>> GetByUserIdAsync(string userId) => bookingRepository.GetByUserIdAsync(userId);
     
-    public async Task<PagedResult<Booking>> GetPagedByUserIdAsync(Guid userId, int page, int pageSize) {
+    public async Task<PagedResult<Booking>> GetPagedByUserIdAsync(string userId, int page, int pageSize) {
         var (items, totalCount) = await bookingRepository.GetPagedByUserIdAsync(userId, page, pageSize);
         return new PagedResult<Booking> {
             Items = items,
@@ -82,11 +82,11 @@ public class BookingService (
         };
     }
 
-    public Task<Booking?> GetByIdAsync(Guid id) => bookingRepository.GetByIdAsync(id);
+    public Task<Booking?> GetByIdAsync(string id) => bookingRepository.GetByIdAsync(id);
     
-    public Task<List<Booking>> GetByEventIdAsync(Guid eventId) => bookingRepository.GetByEventIdAsync(eventId);
+    public Task<List<Booking>> GetByEventIdAsync(string eventId) => bookingRepository.GetByEventIdAsync(eventId);
     
-    public async Task<PagedResult<Booking>> GetPagedByEventIdAsync(Guid evenId, int page, int pageSize) {
+    public async Task<PagedResult<Booking>> GetPagedByEventIdAsync(string evenId, int page, int pageSize) {
         var (items, totalCount) = await bookingRepository.GetPagedByEventIdAsync(evenId, page, pageSize);
         return new PagedResult<Booking> {
             Items = items,
@@ -96,7 +96,7 @@ public class BookingService (
         };
     }
     
-    public async Task<Booking?> CancelAsync(Guid bookingId, Guid requestingUserId) {
+    public async Task<Booking?> CancelAsync(string bookingId, string requestingUserId) {
         var booking = await bookingRepository.GetByIdAsync(bookingId);
         if (booking == null) return null;
 

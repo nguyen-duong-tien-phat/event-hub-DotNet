@@ -4,7 +4,7 @@ using Stripe;
 namespace EventHub.Infrastructure.Payments;
 
 public class StripePaymentService: IPaymentService {
-    public async Task<PaymentIntentResult> CreatePaymentIntentAsync(decimal amount, string currency, Guid bookingId) {
+    public async Task<PaymentIntentResult> CreatePaymentIntentAsync(decimal amount, string currency, string bookingId) {
         var amountInSmallestUnit = (long)(amount * 100);
 
         var options = new PaymentIntentCreateOptions {

@@ -20,7 +20,7 @@ public class CreateEventDto
     public string Location { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "OrganizerId is required")]
-    public Guid OrganizerId { get; set; }
+    public string OrganizerId { get; set; }
 }
 
 public class UpdateEventDto {

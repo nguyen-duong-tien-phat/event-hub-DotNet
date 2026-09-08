@@ -16,14 +16,14 @@ public class BookingServiceTests {
         var unitOfWork = new Mock<IUnitOfWork>();
 
         ticketRepo
-            .Setup(r => r.TryReserveAsync(It.IsAny<Guid>(),  It.IsAny<int>()))
+            .Setup(r => r.TryReserveAsync(It.IsAny<string>(),  It.IsAny<int>()))
             .ReturnsAsync(true);
-        ticketRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>()))
-            .ReturnsAsync(new Ticket { Id = Guid.NewGuid(), RemainingQuantity = 10 });
+        ticketRepo.Setup(r => r.GetByIdAsync(It.IsAny<string>()))
+            .ReturnsAsync(new Ticket { Id = string.Empty, EventId = string.Empty, RemainingQuantity = 10 });
         
         var paymentService = new Mock<IPaymentService>();
         paymentService
-            .Setup(r => r.CreatePaymentIntentAsync(It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<Guid>()))
+            .Setup(r => r.CreatePaymentIntentAsync(It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync(new PaymentIntentResult {
                 PaymentIntentId = "paymentIntentId",
                 ClientSecret = "clientSecret",
@@ -32,8 +32,8 @@ public class BookingServiceTests {
         var service = new BookingService(bookingRepo.Object, ticketRepo.Object, unitOfWork.Object, paymentService.Object);
 
         var request = new CreateBookingRequest {
-            UserId = Guid.NewGuid(),
-            TicketId = Guid.NewGuid(),
+            UserId = string.Empty,
+            TicketId = string.Empty,
             Quantity = 1
         };
         
@@ -54,17 +54,17 @@ public class BookingServiceTests {
         var unitOfWork = new Mock<IUnitOfWork>();
         
         ticketRepo
-            .Setup(r => r.TryReserveAsync(It.IsAny<Guid>(),  It.IsAny<int>()))
+            .Setup(r => r.TryReserveAsync(It.IsAny<string>(),  It.IsAny<int>()))
             .ReturnsAsync(false); // sold out
-        ticketRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>()))
-            .ReturnsAsync(new Ticket { Id = Guid.NewGuid(), RemainingQuantity = 10 });
+        ticketRepo.Setup(r => r.GetByIdAsync(It.IsAny<string>()))
+            .ReturnsAsync(new Ticket { Id = string.Empty, EventId = string.Empty, RemainingQuantity = 10 });
 
         
         var service = new BookingService(bookingRepo.Object, ticketRepo.Object, unitOfWork.Object, new StripePaymentService());
 
         var request = new CreateBookingRequest {
-            UserId = Guid.NewGuid(),
-            TicketId = Guid.NewGuid(),
+            UserId = string.Empty,
+            TicketId = string.Empty,
             Quantity = 1
         };
         
@@ -84,14 +84,14 @@ public class BookingServiceTests {
         var bookingRepo = new Mock<IBookingRepository>();
         var unitOfWork = new Mock<IUnitOfWork>();
 
-        ticketRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>()))
+        ticketRepo.Setup(r => r.GetByIdAsync(It.IsAny<string>()))
             .ReturnsAsync((Ticket?)null);
 
         var service = new BookingService(bookingRepo.Object, ticketRepo.Object, unitOfWork.Object, new StripePaymentService());
 
         var request = new CreateBookingRequest {
-            UserId = Guid.NewGuid(),
-            TicketId = Guid.NewGuid(),
+            UserId = string.Empty,
+            TicketId = string.Empty,
             Quantity = 1
         };
 

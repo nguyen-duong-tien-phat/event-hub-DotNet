@@ -27,7 +27,7 @@ public class EventsService(IRepository<Event> eventRepository, ICacheService cac
         return result;
     }
 
-    public Task<Event?> GetByIdAsync(Guid id) => eventRepository.GetByIdAsync(id);
+    public Task<Event?> GetByIdAsync(string id) => eventRepository.GetByIdAsync(id);
 
 
     public async Task<Event> CreateAsync(CreateEventRequest request) {
@@ -47,7 +47,7 @@ public class EventsService(IRepository<Event> eventRepository, ICacheService cac
         return newEvent;
     }
 
-    public async Task<Event?> UpdateAsync(Guid id, UpdateEventRequest request) {
+    public async Task<Event?> UpdateAsync(string id, UpdateEventRequest request) {
         var existing = await eventRepository.GetByIdAsync(id);
         if (existing == null) return null;
 

@@ -8,7 +8,7 @@ public class Repository<T>(AppDbContext db): IRepository<T> where T: class {
     protected readonly AppDbContext Db = db;
     protected readonly DbSet<T> DbSet = db.Set<T>();
 
-    public async Task<T?> GetByIdAsync(Guid id) => await DbSet.FindAsync(id);
+    public async Task<T?> GetByIdAsync(string id) => await DbSet.FindAsync(id);
     
     public async Task<List<T>> GetAllAsync() => await DbSet.ToListAsync();
     

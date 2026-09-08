@@ -14,7 +14,7 @@ public class BookingsController(BookingService bookingService) : ControllerBase 
     [Authorize(Roles = "Admin, Attendee")]
     [HttpPost]
     public async Task<IActionResult> Create(CreateBookingDto dto) {
-        var userId = Guid.Parse(User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value);
+        var userId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
 
         var result = await bookingService.CreateAsync(new CreateBookingRequest {
             UserId = userId,
@@ -29,7 +29,7 @@ public class BookingsController(BookingService bookingService) : ControllerBase 
 
     [Authorize(Roles = "Admin, Organizer")]
     [HttpGet("{id}")]
-    public async Task<IActionResult> GetById(Guid id) {
+    public async Task<IActionResult> GetById(string id) {
         var booking = await bookingService.GetByIdAsync(id);
         return booking == null ? NotFound() : Ok(BookingResponseDto.FromEntity(booking));
     }
@@ -38,7 +38,7 @@ public class BookingsController(BookingService bookingService) : ControllerBase 
     [HttpGet("me")]
     public async Task<IActionResult> GetMyBookings([FromQuery] PaginationQuery query) {
         var userIdClaim = User.FindFirst(JwtRegisteredClaimNames.Sub)!;
-        var userId = Guid.Parse(userIdClaim.Value);
+        var userId = userIdClaim.Value;
 
         var result = await bookingService.GetPagedByUserIdAsync(userId, query.Page, query.PageSize);
         return Ok(result.Map(BookingResponseDto.FromEntity));
@@ -46,16 +46,16 @@ public class BookingsController(BookingService bookingService) : ControllerBase 
     
     [Authorize(Roles = "Admin, Organizer")]
     [HttpGet("by-event/{eventId}")]
-    public async Task<IActionResult> GetByEvent([FromQuery] PaginationQuery query, Guid eventId) {
+    public async Task<IActionResult> GetByEvent([FromQuery] PaginationQuery query, string eventId) {
         var result = await bookingService.GetPagedByEventIdAsync(eventId, query.Page, query.PageSize);
         return Ok(result.Map(BookingResponseDto.FromEntity));
     }
     
-    [HttpPatch("{id:guid}/cancel")]
-    public async Task<IActionResult> Cancel(Guid id) {
+    [HttpPatch("{id}/cancel")]
+    public async Task<IActionResult> Cancel(string id) {
         var userIdClaim = User.FindFirst(JwtRegisteredClaimNames.Sub);
         if (userIdClaim == null) return Unauthorized();
-        var userId = Guid.Parse(userIdClaim.Value);
+        var userId = userIdClaim.Value;
 
         try {
             var booking = await bookingService.CancelAsync(id, userId);

@@ -22,6 +22,11 @@ public class AppDbContext: DbContext {
     }
     
     protected override void OnModelCreating(ModelBuilder modelBuilder) {
+        modelBuilder.Entity<User>().Property(u => u.Id).ValueGeneratedNever();
+        modelBuilder.Entity<Event>().Property(e => e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<Ticket>().Property(t => t.Id).ValueGeneratedNever();
+        modelBuilder.Entity<Booking>().Property(b => b.Id).ValueGeneratedNever();
+        
         modelBuilder.Entity<User>()
             .Property(u => u.Role)
             .HasConversion<string>();

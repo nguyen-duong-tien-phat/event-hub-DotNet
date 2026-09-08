@@ -1,4 +1,4 @@
-@baseUrl = https://localhost:5001
+@baseUrl = https://localhost:8080
 @token = 
 
 ### =========================================
@@ -6,7 +6,7 @@
 ### ========================================= 
 
 ### Login (copy the returned token into @token above to use in protected requests)
-POST {{baseUrl}}/api/auth/login
+POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
@@ -20,7 +20,7 @@ Content-Type: application/json
 ### =========================================
 
 ### Create a user (signup)
-POST {{baseUrl}}/api/users
+POST {{baseUrl}}/users
 Content-Type: application/json
 
 {
@@ -30,15 +30,15 @@ Content-Type: application/json
 }
 
 ### Get all users (paged)
-GET {{baseUrl}}/api/users?page=1&pageSize=10
+GET {{baseUrl}}/users?page=1&pageSize=10
 Authorization: Bearer {{token}}
 
 ### Get user by id (replace {id})
-GET {{baseUrl}}/api/users/{id}
+GET {{baseUrl}}/users/{id}
 Authorization: Bearer {{token}}
 
 ### Promote a user to Organizer (replace {id})
-PATCH {{baseUrl}}/api/users/{id}/become-organizer
+PATCH {{baseUrl}}/users/{id}/become-organizer
 Authorization: Bearer {{token}}
 
 
@@ -47,7 +47,7 @@ Authorization: Bearer {{token}}
 ### =========================================
 
 ### Create an event (replace organizerId with a real user id)
-POST {{baseUrl}}/api/events
+POST {{baseUrl}}/events
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
@@ -60,15 +60,15 @@ Authorization: Bearer {{token}}
 }
 
 ### Get all events (paged)
-GET {{baseUrl}}/api/events?page=1&pageSize=10
+GET {{baseUrl}}/events?page=1&pageSize=10
 Authorization: Bearer {{token}}
 
 ### Get event by id (replace {id})
-GET {{baseUrl}}/api/events/{id}
+GET {{baseUrl}}/events/{id}
 Authorization: Bearer {{token}}
 
 ### Update an event (partial - only send fields you want to change) (replace {id})
-PATCH {{baseUrl}}/api/events/{id}
+PATCH {{baseUrl}}/events/{id}
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
@@ -82,7 +82,7 @@ Authorization: Bearer {{token}}
 ### =========================================
 
 ### Create a ticket (replace eventId with a real event id)
-POST {{baseUrl}}/api/tickets
+POST {{baseUrl}}/tickets
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
@@ -94,15 +94,15 @@ Authorization: Bearer {{token}}
 }
 
 ### Get tickets for an event (replace {eventId})
-GET {{baseUrl}}/api/tickets/by-event/{eventId}
+GET {{baseUrl}}/tickets/by-event/{eventId}
 Authorization: Bearer {{token}}
 
 ### Get ticket by id (replace {id})
-GET {{baseUrl}}/api/tickets/{id}
+GET {{baseUrl}}/tickets/{id}
 Authorization: Bearer {{token}}
 
 ### Update a ticket (partial) (replace {id})
-PATCH {{baseUrl}}/api/tickets/{id}
+PATCH {{baseUrl}}/tickets/{id}
 Content-Type: application/json
 Authorization: Bearer {{token}}
 

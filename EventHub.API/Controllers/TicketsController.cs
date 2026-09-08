@@ -11,13 +11,13 @@ namespace EventHub.Controllers;
 [Authorize(Roles = "Admin, Organizer")]
 public class TicketsController(TicketService ticketService) : ControllerBase {
     [HttpGet("by-event/{eventId}")]
-    public async Task<IActionResult> GetByEvent([FromQuery] PaginationQuery query, Guid eventId) {
+    public async Task<IActionResult> GetByEvent([FromQuery] PaginationQuery query, string eventId) {
         var result = await ticketService.GetPagedByEventIdAsync(eventId,  query.Page,  query.PageSize);
         return Ok(result);
     }
 
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id) {
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(string id) {
         var ticket = await ticketService.GetByIdAsync(id);
         return ticket == null ? NotFound() : Ok(ticket);
     }
@@ -33,8 +33,8 @@ public class TicketsController(TicketService ticketService) : ControllerBase {
         return CreatedAtAction(nameof(GetById), new { id = ticket.Id }, ticket);
     }
 
-    [HttpPatch("{id:guid}")]
-    public async Task<IActionResult> Update(Guid id, UpdateTicketDto dto) {
+    [HttpPatch("{id}")]
+    public async Task<IActionResult> Update(string id, UpdateTicketDto dto) {
         var updated = await ticketService.UpdateAsync(id, new UpdateTicketRequest {
             Type = dto.Type,
             Price = dto.Price,

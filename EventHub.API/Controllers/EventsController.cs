@@ -16,8 +16,8 @@ public class EventsController(EventsService eventsService) : ControllerBase {
         return Ok(result);
     }
 
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id) {
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(string id) {
         var ev = await eventsService.GetByIdAsync(id);
         return ev == null ? NotFound() : Ok(ev);
     }
@@ -36,8 +36,8 @@ public class EventsController(EventsService eventsService) : ControllerBase {
     }
 
     [Authorize(Roles = "Admin, Organizer")]
-    [HttpPatch("{id:guid}")]
-    public async Task<IActionResult> Update(Guid id, UpdateEventDto dto) {
+    [HttpPatch("{id}")]
+    public async Task<IActionResult> Update(string id, UpdateEventDto dto) {
         var updated = await eventsService.UpdateAsync(id, new UpdateEventRequest {
             Title = dto.Title,
             Description = dto.Description,

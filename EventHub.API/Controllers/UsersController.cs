@@ -19,8 +19,8 @@ public class UsersController(UserService userService): ControllerBase {
         return Ok(response);
     }
     
-    [HttpGet("{id:guid}")]
-    public async Task<ActionResult<UserResponseDto>> GetById(Guid id) {
+    [HttpGet("{id}")]
+    public async Task<ActionResult<UserResponseDto>> GetById(string id) {
         var user = await userService.GetByIdAsync(id);
         if (user == null) return NotFound();
         return Ok(UserResponseDto.FromEntity(user));
@@ -36,8 +36,8 @@ public class UsersController(UserService userService): ControllerBase {
         return Ok(UserResponseDto.FromEntity(user));
     }
     
-    [HttpPatch("{id:guid}/become-organizer")]
-    public async Task<ActionResult<UserResponseDto>> BecomeOrganizer(Guid id) {
+    [HttpPatch("{id}/become-organizer")]
+    public async Task<ActionResult<UserResponseDto>> BecomeOrganizer(string id) {
         var user = await userService.BecomeOrganizerAsync(id);
         if (user == null) return NotFound();
         return Ok(UserResponseDto.FromEntity(user));

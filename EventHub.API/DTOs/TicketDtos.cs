@@ -4,7 +4,7 @@ namespace EventHub.DTOs;
 
 public class CreateTicketDto {
     [Required(ErrorMessage = "EventId is required")]
-    public Guid EventId { get; set; }
+    public required string EventId { get; set; }
 
     [Required(ErrorMessage = "Type is required")]
     public string Type { get; set; } = string.Empty;

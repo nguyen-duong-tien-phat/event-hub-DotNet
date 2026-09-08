@@ -5,7 +5,7 @@ public class CreateEventRequest {
     public string Description { get; set; } = string.Empty;
     public DateTime StartsAt { get; set; }
     public string Location { get; set; } = string.Empty;
-    public Guid OrganizerId { get; set; }
+    public required string OrganizerId { get; set; }
 }
 
 public class UpdateEventRequest {

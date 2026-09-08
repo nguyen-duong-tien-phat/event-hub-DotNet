@@ -1,7 +1,7 @@
 namespace EventHub.Core.Interfaces;
 
 public interface IRepository<T> where T: class {
-    Task<T?> GetByIdAsync(Guid id);
+    Task<T?> GetByIdAsync(string id);
     Task<List<T>> GetAllAsync();
     Task<(List<T> Items, int TotalCount)> GetPagedAsync(int page, int pageSize);
     Task AddAsync(T entity);

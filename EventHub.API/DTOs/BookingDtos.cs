@@ -5,15 +5,15 @@ namespace EventHub.DTOs;
 
 public class CreateBookingDto {
     [Required(ErrorMessage = "TicketId is required")]
-    public Guid TicketId { get; set; }
+    public required string TicketId { get; set; }
 
     [Range(1, int.MaxValue, ErrorMessage = "Quantity must be greater than zero")]
     public int Quantity { get; set; } = 1;
 }
 
 public class BookingResponseDto {
-    public Guid Id { get; set; }
-    public Guid TicketId { get; set; }
+    public required string Id { get; set; }
+    public required string TicketId { get; set; }
     public int Quantity { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }

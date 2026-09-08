@@ -18,7 +18,7 @@ public class WebhooksController(IBookingRepository bookingRepository, ITicketRep
         try {
             stripeEvent = EventUtility.ConstructEvent(json, signature, webhookSecret);
         }
-        catch (StripeException e) {
+        catch {
             return BadRequest(); // signature invalid - reject
         }
         
@@ -28,7 +28,7 @@ public class WebhooksController(IBookingRepository bookingRepository, ITicketRep
         }
         else if (stripeEvent.Type == EventTypes.PaymentIntentPaymentFailed) {
             var intent = (PaymentIntent)stripeEvent.Data.Object;
-            await HandlePaymentFailed(intent.Id, intent.Metadata);
+            await HandlePaymentFailed(intent.Id);
         }
         else {
             Console.WriteLine("Unhandled event type: {0}", stripeEvent.Type);
@@ -48,7 +48,7 @@ public class WebhooksController(IBookingRepository bookingRepository, ITicketRep
         await bookingRepository.SaveChangesAsync();
     }
 
-    private async Task HandlePaymentFailed(string paymentIntentId, Dictionary<string, string> metadata) {
+    private async Task HandlePaymentFailed(string paymentIntentId) {
         var booking = await bookingRepository.GetByPaymentIntentId(paymentIntentId);
         if (booking == null || booking.Status != BookingStatus.Pending) {
             return;

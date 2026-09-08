@@ -49,7 +49,7 @@ public class AuthController(UserService userService, TokenService tokenService, 
 
     [HttpGet("me")]
     public async Task<IActionResult> GetMyInfo() {
-        var userId = Guid.Parse(User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value);
+        var userId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
         var user = await userService.GetByIdAsync(userId);
         if (user  == null) return Unauthorized(new { message = "User not found" });
         return Ok(user);

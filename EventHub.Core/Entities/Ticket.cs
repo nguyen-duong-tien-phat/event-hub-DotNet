@@ -1,8 +1,7 @@
 namespace EventHub.Core.Entities;
 
-public class Ticket: BaseEntity {
-    public Guid EventId { get; set; }
-    public Event? Event { get; set; }
+public class Ticket(): BaseEntity("ticket") {
+    public required string EventId { get; set; }
     public string Type { get; set; } = string.Empty; // e.g. "General", "VIP"
     public decimal Price { get; set; }
     public int TotalQuantity { get; set; }

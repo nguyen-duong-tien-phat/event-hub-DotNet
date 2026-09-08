@@ -6,12 +6,12 @@ using EventHub.Core.Services.Models;
 namespace EventHub.Core.Services;
 
 public class TicketService(ITicketRepository ticketRepository) {
-    public Task<List<Ticket>> GetByEventIdAsync(Guid eventId) =>
+    public Task<List<Ticket>> GetByEventIdAsync(string eventId) =>
         ticketRepository.GetByEventIdAsync(eventId);
 
-    public Task<Ticket?> GetByIdAsync(Guid id) => ticketRepository.GetByIdAsync(id);
+    public Task<Ticket?> GetByIdAsync(string id) => ticketRepository.GetByIdAsync(id);
     
-    public async Task<PagedResult<Ticket>> GetPagedByEventIdAsync(Guid evenId, int page, int pageSize) {
+    public async Task<PagedResult<Ticket>> GetPagedByEventIdAsync(string evenId, int page, int pageSize) {
         var (items, totalCount) = await ticketRepository.GetPagedByEventIdAsync(evenId, page, pageSize);
         return new PagedResult<Ticket> {
             Items = items,
@@ -35,7 +35,7 @@ public class TicketService(ITicketRepository ticketRepository) {
         return ticket;
     }
 
-    public async Task<Ticket?> UpdateAsync(Guid id, UpdateTicketRequest request) {
+    public async Task<Ticket?> UpdateAsync(string id, UpdateTicketRequest request) {
         var existing = await ticketRepository.GetByIdAsync(id);
         if (existing == null) return null;
 

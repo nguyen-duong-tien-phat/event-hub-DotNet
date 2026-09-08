@@ -21,7 +21,7 @@ public class UserService(
         };
     }
 
-    public Task<User?> GetByIdAsync(Guid id) => userRepository.GetByIdAsync(id);
+    public Task<User?> GetByIdAsync(string id) => userRepository.GetByIdAsync(id);
 
     public async Task<User> CreateAsync(CreateUserRequest request) {
         var user = new User {
@@ -36,7 +36,7 @@ public class UserService(
         return user;
     }
     
-    public async Task<User?> BecomeOrganizerAsync(Guid userId) {
+    public async Task<User?> BecomeOrganizerAsync(string userId) {
         var user = await userRepository.GetByIdAsync(userId);
         if (user == null) return null;
 

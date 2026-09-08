@@ -8,10 +8,10 @@ using Microsoft.EntityFrameworkCore;
 namespace EventHub.Infrastructure.Repositories;
 
 public class BookingRepository(AppDbContext db) : Repository<Booking>(db), IBookingRepository {
-    public async Task<List<Booking>> GetByUserIdAsync(Guid userId) =>
+    public async Task<List<Booking>> GetByUserIdAsync(string userId) =>
         await Db.Bookings.Where(b => b.UserId == userId).ToListAsync();
 
-    public async Task<(List<Booking> Items, int TotalCount)> GetPagedByUserIdAsync(Guid userId, int page, int pageSize) {
+    public async Task<(List<Booking> Items, int TotalCount)> GetPagedByUserIdAsync(string userId, int page, int pageSize) {
         var query = Db.Bookings.Where(b => b.UserId == userId);
 
         var totalCount = await query.CountAsync();
@@ -23,13 +23,13 @@ public class BookingRepository(AppDbContext db) : Repository<Booking>(db), IBook
         return (items, totalCount);
     }
 
-    public async Task<List<Booking>> GetByEventIdAsync(Guid eventId) =>
+    public async Task<List<Booking>> GetByEventIdAsync(string eventId) =>
         await Db.Bookings
             .Where(b => b.Ticket!.EventId == eventId)
             .Include(b => b.Ticket)
             .ToListAsync();
     
-    public async Task<(List<Booking> Items, int TotalCount)> GetPagedByEventIdAsync(Guid eventId, int page, int pageSize) {
+    public async Task<(List<Booking> Items, int TotalCount)> GetPagedByEventIdAsync(string eventId, int page, int pageSize) {
         var query = Db.Bookings.Where(b => b.Ticket!.EventId == eventId);
 
         var totalCount = await query.CountAsync();
