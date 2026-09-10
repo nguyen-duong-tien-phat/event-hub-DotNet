@@ -21,6 +21,11 @@ public class CreateEventDto
 
     [Required(ErrorMessage = "OrganizerId is required")]
     public string OrganizerId { get; set; }
+    
+    [Required(ErrorMessage = "ImageUrl is required")]
+    public required string ImageUrl { get; set; }
+    
+    public List<string> Highlights { get; set; }
 }
 
 public class UpdateEventDto {

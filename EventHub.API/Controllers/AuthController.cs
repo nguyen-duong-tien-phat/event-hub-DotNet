@@ -4,6 +4,7 @@ using EventHub.Core.Interfaces;
 using EventHub.DTOs;
 using EventHub.Core.Services;
 using EventHub.Core.Services.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventHub.Controllers;
@@ -28,6 +29,7 @@ public class AuthController(UserService userService, TokenService tokenService, 
 
         var token = tokenService.GenerateToken(user);
         return Ok(new AuthResponseDto {
+            Id = user.Id,
             Token = token,
             Email = user.Email,
             FullName = user.FullName,
@@ -37,21 +39,22 @@ public class AuthController(UserService userService, TokenService tokenService, 
 
     [HttpPost("register")]
     public async Task<IActionResult> Register(RegisterDto dto) {
-        var user = await userService.CreateAsync(new CreateUserRequest {
+        await userService.CreateAsync(new CreateUserRequest {
             Email = dto.Email,
             FullName = dto.FullName,
             Password = dto.Password,
             Role = UserRole.Attendee
         });
         
-        return Ok(UserResponseDto.FromEntity(user));
+        return Ok();
     }
 
+    [Authorize]
     [HttpGet("me")]
     public async Task<IActionResult> GetMyInfo() {
         var userId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
         var user = await userService.GetByIdAsync(userId);
         if (user  == null) return Unauthorized(new { message = "User not found" });
-        return Ok(user);
+        return Ok(UserResponseDto.FromEntity(user));
     }
 }

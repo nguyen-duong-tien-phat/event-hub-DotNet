@@ -7,5 +7,8 @@ public class Event(): BaseEntity("event") {
     public required string Location { get; set; }
     public required string OrganizerId { get; set; }
     public User? Organizer { get; set; }
-    public List<Ticket> Tickets { get; set; } = new();
+    public List<Ticket> Tickets { get; set; } = [];
+    public required string ImageUrl { get; set; }
+    public List<string> Highlights { get; set; } = [];
+
 }

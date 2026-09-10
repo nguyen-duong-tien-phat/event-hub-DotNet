@@ -30,6 +30,9 @@ public class AppDbContext: DbContext {
         modelBuilder.Entity<User>()
             .Property(u => u.Role)
             .HasConversion<string>();
+        
+        modelBuilder.Entity<Event>().Property(e => e.Highlights)
+            .HasColumnType("jsonb");
 
         modelBuilder.Entity<Booking>()
             .Property(b => b.Status)

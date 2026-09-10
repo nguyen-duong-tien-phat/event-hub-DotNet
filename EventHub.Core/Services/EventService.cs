@@ -36,7 +36,9 @@ public class EventsService(IRepository<Event> eventRepository, ICacheService cac
             Description = request.Description,
             StartsAt = request.StartsAt,
             Location = request.Location,
-            OrganizerId = request.OrganizerId
+            OrganizerId = request.OrganizerId,
+            ImageUrl = request.ImageUrl,
+            Highlights = request.Highlights
         };
 
         await eventRepository.AddAsync(newEvent);

@@ -30,7 +30,9 @@ public class EventsController(EventsService eventsService) : ControllerBase {
             Description = dto.Description,
             StartsAt = dto.StartsAt,
             Location = dto.Location,
-            OrganizerId = dto.OrganizerId
+            OrganizerId = dto.OrganizerId,
+            ImageUrl = dto.ImageUrl,
+            Highlights = dto.Highlights ?? []
         });
         return CreatedAtAction(nameof(GetById), new { id = newEvent.Id }, newEvent);
     }

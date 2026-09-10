@@ -6,6 +6,8 @@ public class CreateEventRequest {
     public DateTime StartsAt { get; set; }
     public string Location { get; set; } = string.Empty;
     public required string OrganizerId { get; set; }
+    public required string ImageUrl { get; set; }
+    public List<string> Highlights { get; set; }
 }
 
 public class UpdateEventRequest {
