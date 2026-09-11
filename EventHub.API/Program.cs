@@ -67,6 +67,7 @@ builder.Services.AddScoped<ITicketRepository, TicketRepository>();
 builder.Services.AddScoped<TicketService>();
 builder.Services.AddScoped<IBookingRepository, BookingRepository>();
 builder.Services.AddScoped<EventsService>();
+builder.Services.AddScoped<IEventRepository, EventRepository>();
 builder.Services.AddScoped<BookingService>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 

@@ -6,7 +6,7 @@ using EventHub.Core.Services.Models;
 
 namespace EventHub.Core.Services;
 
-public class EventsService(IRepository<Event> eventRepository, ICacheService cache) {
+public class EventsService(IEventRepository eventRepository, ICacheService cache) {
     private readonly string _cacheKeyPrefix = "events:";
     
     public async Task<PagedResult<Event>> GetPagedAsync(int page, int pageSize) {
@@ -16,7 +16,7 @@ public class EventsService(IRepository<Event> eventRepository, ICacheService cac
             return JsonSerializer.Deserialize<PagedResult<Event>>(cached)!;
         }
 
-        var (items, totalCount) = await eventRepository.GetPagedAsync(page, pageSize);
+        var (items, totalCount) = await eventRepository.GetPagedWithOrganizerAsync(page, pageSize);
         var result = new PagedResult<Event> {
             Items = items,
             Page = page,
