@@ -1,5 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using EventHub.Annotations;
+using EventHub.Core.Entities;
+using EventHub.Core.Services.Models;
 
 namespace EventHub.DTOs;
 

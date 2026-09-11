@@ -6,7 +6,11 @@ using EventHub.Core.Services.Models;
 
 namespace EventHub.Core.Services;
 
-public class EventsService(IEventRepository eventRepository, ICacheService cache) {
+public class EventsService(
+    IEventRepository eventRepository, 
+    ITicketRepository ticketRepository, 
+    ICacheService cache) 
+{
     private readonly string _cacheKeyPrefix = "events:";
     
     public async Task<PagedResult<Event>> GetPagedAsync(int page, int pageSize) {
@@ -16,7 +20,7 @@ public class EventsService(IEventRepository eventRepository, ICacheService cache
             return JsonSerializer.Deserialize<PagedResult<Event>>(cached)!;
         }
 
-        var (items, totalCount) = await eventRepository.GetPagedWithOrganizerAsync(page, pageSize);
+        var (items, totalCount) = await eventRepository.GetPagedAsync(page, pageSize);
         var result = new PagedResult<Event> {
             Items = items,
             Page = page,
@@ -27,7 +31,28 @@ public class EventsService(IEventRepository eventRepository, ICacheService cache
         return result;
     }
 
-    public Task<Event?> GetByIdAsync(string id) => eventRepository.GetByIdAsync(id);
+    public async Task<EventResponse?> GetByIdAsync(string id) {
+        var eventDetail = await eventRepository.GetEventDetailByIdAsync(id);
+        if (eventDetail  == null) return null;
+        var tickets = await ticketRepository.GetByEventIdAsync(id);
+        var eventReponse = new EventResponse {
+            Id = eventDetail.Id,
+            Title = eventDetail.Title,
+            Description = eventDetail.Description,
+            StartsAt = eventDetail.StartsAt,
+            Location = eventDetail.Location,
+            ImageUrl = eventDetail.ImageUrl,
+            Highlights = eventDetail.Highlights,
+            Tickets = tickets,
+            Organizer = new Organizer {
+                Id = eventDetail.Organizer.Id,
+                Email = eventDetail.Organizer.Email,
+                FullName = eventDetail.Organizer.FullName
+            }
+        };
+        
+        return eventReponse;
+    }
 
 
     public async Task<Event> CreateAsync(CreateEventRequest request) {
