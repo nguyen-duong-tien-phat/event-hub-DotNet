@@ -47,7 +47,8 @@ public class EventsService(
             Organizer = new Organizer {
                 Id = eventDetail.Organizer.Id,
                 Email = eventDetail.Organizer.Email,
-                FullName = eventDetail.Organizer.FullName
+                FullName = eventDetail.Organizer.FullName,
+                Role = eventDetail.Organizer.Role.ToString(),
             }
         };
         

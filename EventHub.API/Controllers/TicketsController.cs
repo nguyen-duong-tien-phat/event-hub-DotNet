@@ -28,7 +28,9 @@ public class TicketsController(TicketService ticketService) : ControllerBase {
             EventId = dto.EventId,
             Type = dto.Type,
             Price = dto.Price,
-            TotalQuantity = dto.TotalQuantity
+            TotalQuantity = dto.TotalQuantity,
+            Highlights = dto.Highlights,
+            MaxPerOrder = dto.MaxPerOrder
         });
         return CreatedAtAction(nameof(GetById), new { id = ticket.Id }, ticket);
     }

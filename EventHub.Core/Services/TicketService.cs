@@ -27,6 +27,8 @@ public class TicketService(ITicketRepository ticketRepository) {
             Type = request.Type,
             Price = request.Price,
             TotalQuantity = request.TotalQuantity,
+            Highlights = request.Highlights,
+            MaxPerOrder = request.MaxPerOrder,
             RemainingQuantity = request.TotalQuantity // starts full, business rule
         };
 

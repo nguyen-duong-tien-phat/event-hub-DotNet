@@ -5,6 +5,8 @@ public class CreateTicketRequest {
     public string Type { get; set; } = string.Empty;
     public decimal Price { get; set; }
     public int TotalQuantity { get; set; }
+    public List<string> Highlights { get; set; } = [];
+    public required int MaxPerOrder { get; set; }
 }
 
 public class UpdateTicketRequest {

@@ -14,6 +14,11 @@ public class CreateTicketDto {
 
     [Range(1, int.MaxValue, ErrorMessage = "TotalQuantity must be at least 1")]
     public int TotalQuantity { get; set; }
+    
+    public List<string> Highlights { get; set; } = [];
+    
+    [Range(1, int.MaxValue, ErrorMessage = "MaxPerOrder must be at least 1")]
+    public required int MaxPerOrder { get; set; }
 }
 
 public class UpdateTicketDto {

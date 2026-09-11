@@ -31,8 +31,15 @@ public class AppDbContext: DbContext {
             .Property(u => u.Role)
             .HasConversion<string>();
         
-        modelBuilder.Entity<Event>().Property(e => e.Highlights)
-            .HasColumnType("jsonb");
+        modelBuilder.Entity<Ticket>()
+            .Property(x => x.Highlights)
+            .HasColumnType("text[]")
+            .HasDefaultValueSql("'{}'::text[]");
+        
+        modelBuilder.Entity<Event>()
+            .Property(e => e.Highlights)
+            .HasColumnType("text[]")
+            .HasDefaultValueSql("'{}'::text[]");
 
         modelBuilder.Entity<Booking>()
             .Property(b => b.Status)
