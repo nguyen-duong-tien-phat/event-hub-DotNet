@@ -19,7 +19,7 @@ public class BookingServiceTests {
             .Setup(r => r.TryReserveAsync(It.IsAny<string>(),  It.IsAny<int>()))
             .ReturnsAsync(true);
         ticketRepo.Setup(r => r.GetByIdAsync(It.IsAny<string>()))
-            .ReturnsAsync(new Ticket { Id = string.Empty, EventId = string.Empty, RemainingQuantity = 10 });
+            .ReturnsAsync(new Ticket { Id = string.Empty, EventId = string.Empty, RemainingQuantity = 10, MaxPerOrder = 2, Highlights = []});
         
         var paymentService = new Mock<IPaymentService>();
         paymentService
@@ -57,7 +57,7 @@ public class BookingServiceTests {
             .Setup(r => r.TryReserveAsync(It.IsAny<string>(),  It.IsAny<int>()))
             .ReturnsAsync(false); // sold out
         ticketRepo.Setup(r => r.GetByIdAsync(It.IsAny<string>()))
-            .ReturnsAsync(new Ticket { Id = string.Empty, EventId = string.Empty, RemainingQuantity = 10 });
+            .ReturnsAsync(new Ticket { Id = string.Empty, EventId = string.Empty, RemainingQuantity = 10, MaxPerOrder = 2, Highlights = []});
 
         
         var service = new BookingService(bookingRepo.Object, ticketRepo.Object, unitOfWork.Object, new StripePaymentService());
