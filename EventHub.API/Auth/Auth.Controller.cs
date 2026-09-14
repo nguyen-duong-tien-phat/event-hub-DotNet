@@ -1,13 +1,12 @@
 using System.IdentityModel.Tokens.Jwt;
-using EventHub.Core.Enums;
-using EventHub.Core.Interfaces;
-using EventHub.DTOs;
-using EventHub.Core.Services;
-using EventHub.Core.Services.Models;
+using EventHub.Core.Auth;
+using EventHub.Core.Common;
+using EventHub.Core.Users;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace EventHub.Controllers;
+namespace EventHub.Auth;
+
 
 [ApiController]
 [Route("auth")]

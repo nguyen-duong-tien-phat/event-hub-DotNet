@@ -1,11 +1,10 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using EventHub.Core.Entities;
+using EventHub.Core.Users;
 using Microsoft.IdentityModel.Tokens;
-using JwtRegisteredClaimNames = Microsoft.IdentityModel.JsonWebTokens.JwtRegisteredClaimNames;
 
-namespace EventHub.Core.Services;
+namespace EventHub.Core.Auth;
 
 public class TokenService(string key, string issuer, string audience, int expiryMinutes) {
     public string GenerateToken(User user) {

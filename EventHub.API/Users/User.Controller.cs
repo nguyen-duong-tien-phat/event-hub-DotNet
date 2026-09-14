@@ -1,5 +1,4 @@
 using EventHub.Core.Common;
-using EventHub.Core.Services;
 using EventHub.Core.Users;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

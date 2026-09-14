@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace EventHub.DTOs;
+namespace EventHub.Core.Auth;
 
 public class LoginDto {
     [Required, EmailAddress]
