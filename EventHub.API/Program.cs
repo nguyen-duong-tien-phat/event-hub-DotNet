@@ -1,13 +1,20 @@
 using System.Text;
+using DotNetEnv;
 using EventHub.BackgroundJobs;
-using EventHub.Core.Entities;
+using EventHub.Core.Bookings;
+using EventHub.Core.Common;
+using EventHub.Core.Events;
 using EventHub.Core.Interfaces;
-using EventHub.Core.Services;
+using EventHub.Core.Tickets;
 using EventHub.Core.Users;
+using EventHub.Infrastructure.Bookings;
 using EventHub.Infrastructure.Caching;
+using EventHub.Infrastructure.Common;
 using EventHub.Infrastructure.Data;
+using EventHub.Infrastructure.Events;
 using EventHub.Infrastructure.Payments;
-using EventHub.Infrastructure.Repositories;
+using EventHub.Infrastructure.Tickets;
+using EventHub.Infrastructure.Users;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -15,10 +22,10 @@ using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
 using Stripe;
-using TokenService = EventHub.Core.Services.TokenService;
-using UserRepository = EventHub.Infrastructure.Users.UserRepository;
+using EventService = EventHub.Core.Events.EventService;
+using TokenService = EventHub.Core.Auth.TokenService;
 
-DotNetEnv.Env.Load();
+Env.Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -68,7 +75,7 @@ builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<ITicketRepository, TicketRepository>();
 builder.Services.AddScoped<TicketService>();
 builder.Services.AddScoped<IBookingRepository, BookingRepository>();
-builder.Services.AddScoped<EventsService>();
+builder.Services.AddScoped<EventService>();
 builder.Services.AddScoped<IEventRepository, EventRepository>();
 builder.Services.AddScoped<BookingService>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();

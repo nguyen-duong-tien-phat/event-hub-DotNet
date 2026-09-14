@@ -1,6 +1,6 @@
 using EventHub.Core.Users;
+using EventHub.Infrastructure.Common;
 using EventHub.Infrastructure.Data;
-using EventHub.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace EventHub.Infrastructure.Users;

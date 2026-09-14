@@ -1,8 +1,7 @@
-using EventHub.Controllers;
-using EventHub.Core.Entities;
-using EventHub.Core.Interfaces;
-using EventHub.Core.Services;
-using EventHub.DTOs;
+using EventHub.Auth;
+using EventHub.Core.Auth;
+using EventHub.Core.Common;
+using EventHub.Core.Users;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;

@@ -1,4 +1,7 @@
-using EventHub.Core.Entities;
+using EventHub.Core.Bookings;
+using EventHub.Core.Common;
+using EventHub.Core.Events;
+using EventHub.Core.Tickets;
 using EventHub.Core.Users;
 using Microsoft.EntityFrameworkCore;
 

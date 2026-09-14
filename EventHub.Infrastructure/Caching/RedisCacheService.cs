@@ -1,4 +1,4 @@
-using EventHub.Core.Interfaces;
+using EventHub.Core.Common;
 using StackExchange.Redis;
 
 namespace EventHub.Infrastructure.Caching;

@@ -22,4 +22,8 @@
       <PackageReference Include="Stripe.net" Version="52.3.0" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="Repositories\" />
+    </ItemGroup>
+
 </Project>

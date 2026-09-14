@@ -1,0 +1,49 @@
+using EventHub.Core.Common;
+using EventHub.Core.Events;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace EventHub.Events;
+
+[ApiController]
+[Route("events")]
+public class EventsController(EventService eventService) : ControllerBase {
+    [HttpGet]
+    public async Task<IActionResult> GetAll([FromQuery] PaginationQuery query) {
+        var result = await eventService.GetPagedAsync(query.Page, query.PageSize);
+        return Ok(result);
+    }
+
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(string id) {
+        var ev = await eventService.GetByIdAsync(id);
+        return ev == null ? NotFound() : Ok(ev);
+    }
+
+    [Authorize(Roles = "Admin, Organizer")]
+    [HttpPost]
+    public async Task<IActionResult> Create(CreateEventDto dto) {
+        var newEvent = await eventService.CreateAsync(new CreateEventRequest {
+            Title = dto.Title,
+            Description = dto.Description,
+            StartsAt = dto.StartsAt,
+            Location = dto.Location,
+            OrganizerId = dto.OrganizerId,
+            ImageUrl = dto.ImageUrl,
+            Highlights = dto.Highlights ?? []
+        });
+        return CreatedAtAction(nameof(GetById), new { id = newEvent.Id }, newEvent);
+    }
+
+    [Authorize(Roles = "Admin, Organizer")]
+    [HttpPatch("{id}")]
+    public async Task<IActionResult> Update(string id, UpdateEventDto dto) {
+        var updated = await eventService.UpdateAsync(id, new UpdateEventRequest {
+            Title = dto.Title,
+            Description = dto.Description,
+            StartsAt = dto.StartsAt,
+            Location = dto.Location
+        });
+        return updated == null ? NotFound() : Ok(updated);
+    }
+}

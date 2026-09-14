@@ -1,8 +1,6 @@
-﻿using EventHub.Core.Entities;
-using EventHub.Core.Enums;
+﻿using EventHub.Core.Bookings;
 using EventHub.Core.Interfaces;
-using EventHub.Core.Services;
-using EventHub.Core.Services.Models;
+using EventHub.Core.Tickets;
 using EventHub.Infrastructure.Payments;
 using Moq;
 

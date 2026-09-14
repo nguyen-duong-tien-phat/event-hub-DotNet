@@ -1,0 +1,46 @@
+using EventHub.Core.Common;
+using EventHub.Core.Tickets;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace EventHub.Tickets;
+
+[ApiController]
+[Route("tickets")]
+[Authorize(Roles = "Admin, Organizer")]
+public class TicketsController(TicketService ticketService) : ControllerBase {
+    [HttpGet("by-event/{eventId}")]
+    public async Task<IActionResult> GetByEvent([FromQuery] PaginationQuery query, string eventId) {
+        var result = await ticketService.GetPagedByEventIdAsync(eventId,  query.Page,  query.PageSize);
+        return Ok(result);
+    }
+
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(string id) {
+        var ticket = await ticketService.GetByIdAsync(id);
+        return ticket == null ? NotFound() : Ok(ticket);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create(CreateTicketDto dto) {
+        var ticket = await ticketService.CreateAsync(new CreateTicketRequest {
+            EventId = dto.EventId,
+            Type = dto.Type,
+            Price = dto.Price,
+            TotalQuantity = dto.TotalQuantity,
+            Highlights = dto.Highlights,
+            MaxPerOrder = dto.MaxPerOrder
+        });
+        return CreatedAtAction(nameof(GetById), new { id = ticket.Id }, ticket);
+    }
+
+    [HttpPatch("{id}")]
+    public async Task<IActionResult> Update(string id, UpdateTicketDto dto) {
+        var updated = await ticketService.UpdateAsync(id, new UpdateTicketRequest {
+            Type = dto.Type,
+            Price = dto.Price,
+            TotalQuantity = dto.TotalQuantity
+        });
+        return updated == null ? NotFound() : Ok(updated);
+    }
+}
