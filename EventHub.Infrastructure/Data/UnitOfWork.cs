@@ -1,4 +1,4 @@
-using EventHub.Core.Interfaces;
+using EventHub.Core.Common;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace EventHub.Infrastructure.Data;

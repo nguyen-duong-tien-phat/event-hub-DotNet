@@ -1,5 +1,5 @@
 using EventHub.Core.Common;
-using EventHub.Core.Interfaces;
+using EventHub.Core.Payments;
 using EventHub.Core.Tickets;
 
 namespace EventHub.Core.Bookings;

@@ -4,7 +4,7 @@ using EventHub.BackgroundJobs;
 using EventHub.Core.Bookings;
 using EventHub.Core.Common;
 using EventHub.Core.Events;
-using EventHub.Core.Interfaces;
+using EventHub.Core.Payments;
 using EventHub.Core.Tickets;
 using EventHub.Core.Users;
 using EventHub.Infrastructure.Bookings;

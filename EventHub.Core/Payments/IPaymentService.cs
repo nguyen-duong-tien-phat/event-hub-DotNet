@@ -1,4 +1,4 @@
-namespace EventHub.Core.Interfaces;
+namespace EventHub.Core.Payments;
 
 public class PaymentIntentResult {
     public string PaymentIntentId { get; set; } = string.Empty;

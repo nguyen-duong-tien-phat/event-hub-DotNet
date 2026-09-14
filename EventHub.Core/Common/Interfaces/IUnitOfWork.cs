@@ -1,4 +1,4 @@
-namespace EventHub.Core.Interfaces;
+namespace EventHub.Core.Common;
 
 public interface IUnitOfWork {
     Task BeginTransactionAsync();

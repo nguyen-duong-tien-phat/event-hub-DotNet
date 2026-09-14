@@ -1,5 +1,6 @@
 ﻿using EventHub.Core.Bookings;
-using EventHub.Core.Interfaces;
+using EventHub.Core.Common;
+using EventHub.Core.Payments;
 using EventHub.Core.Tickets;
 using EventHub.Infrastructure.Payments;
 using Moq;

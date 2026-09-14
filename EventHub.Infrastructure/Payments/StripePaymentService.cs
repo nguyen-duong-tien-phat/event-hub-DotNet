@@ -1,4 +1,4 @@
-using EventHub.Core.Interfaces;
+using EventHub.Core.Payments;
 using Stripe;
 
 namespace EventHub.Infrastructure.Payments;
