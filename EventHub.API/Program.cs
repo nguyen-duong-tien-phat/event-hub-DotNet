@@ -3,6 +3,7 @@ using EventHub.BackgroundJobs;
 using EventHub.Core.Entities;
 using EventHub.Core.Interfaces;
 using EventHub.Core.Services;
+using EventHub.Core.Users;
 using EventHub.Infrastructure.Caching;
 using EventHub.Infrastructure.Data;
 using EventHub.Infrastructure.Payments;
@@ -15,6 +16,7 @@ using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
 using Stripe;
 using TokenService = EventHub.Core.Services.TokenService;
+using UserRepository = EventHub.Infrastructure.Users.UserRepository;
 
 DotNetEnv.Env.Load();
 

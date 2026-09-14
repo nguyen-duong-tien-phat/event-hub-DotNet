@@ -1,12 +1,10 @@
 using EventHub.Core.Common;
-using EventHub.Core.Enums;
 using EventHub.Core.Services;
-using EventHub.Core.Services.Models;
-using EventHub.DTOs;
+using EventHub.Core.Users;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace EventHub.Controllers;
+namespace EventHub.Users;
 
 [ApiController]
 [Route("users")]

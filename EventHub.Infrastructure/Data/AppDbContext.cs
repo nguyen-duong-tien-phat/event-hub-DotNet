@@ -1,11 +1,10 @@
 using EventHub.Core.Entities;
+using EventHub.Core.Users;
 using Microsoft.EntityFrameworkCore;
 
 namespace EventHub.Infrastructure.Data;
 
-public class AppDbContext: DbContext {
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
-
+public class AppDbContext(DbContextOptions<AppDbContext> options): DbContext(options) {
     public DbSet<User> Users => Set<User>();
     public DbSet<Event> Events => Set<Event>();
     public DbSet<Ticket> Tickets => Set<Ticket>();

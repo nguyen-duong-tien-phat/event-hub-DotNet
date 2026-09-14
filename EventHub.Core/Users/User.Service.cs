@@ -1,11 +1,7 @@
 using EventHub.Core.Common;
-using EventHub.Core.Entities;
-using EventHub.Core.Enums;
-using EventHub.Core.Interfaces;
-using EventHub.Core.Services.Models;
 using Microsoft.AspNetCore.Identity;
 
-namespace EventHub.Core.Services;
+namespace EventHub.Core.Users;
 
 public class UserService(
     IUserRepository userRepository, 

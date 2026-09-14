@@ -1,6 +1,6 @@
-using EventHub.Core.Entities;
+using EventHub.Core.Common;
 
-namespace EventHub.Core.Interfaces;
+namespace EventHub.Core.Users;
 
 public interface IUserRepository : IRepository<User> {
     Task<User?> GetByEmailAsync(string email);
