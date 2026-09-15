@@ -25,7 +25,7 @@ using Stripe;
 using EventService = EventHub.Core.Events.EventService;
 using TokenService = EventHub.Core.Auth.TokenService;
 
-Env.Load();
+Env.Load("../.env");
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,7 +38,7 @@ dataSourceBuilder.EnableDynamicJson();
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(dataSourceBuilder.Build()));
 
 // Stripe
-StripeConfiguration.ApiKey = builder.Configuration["Stripe:SecretKey"];
+StripeConfiguration.ApiKey = Environment.GetEnvironmentVariable("STRIPE_SECRET_KEY");
 builder.Services.AddScoped<IPaymentService, StripePaymentService>();
 
 // Cache, Rate-limit
@@ -47,10 +47,13 @@ builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddScoped<IRateLimiter, RedisRateLimiter>();
 
 // JWT
-var jwtKey = builder.Configuration["Jwt:Key"]!;
+var jwtKey = Environment.GetEnvironmentVariable("JWT_KEY");
 var jwtIssuer = builder.Configuration["Jwt:Issuer"]!;
 var jwtAudience = builder.Configuration["Jwt:Audience"]!;
 var jwtExpiry = int.Parse(builder.Configuration["Jwt:ExpiryMinutes"]!);
+
+if (string.IsNullOrEmpty(jwtKey))
+    throw new InvalidOperationException("JWT_KEY is not configured.");
 
 builder.Services.AddScoped(_ => new TokenService(jwtKey, jwtIssuer, jwtAudience, jwtExpiry));
 
