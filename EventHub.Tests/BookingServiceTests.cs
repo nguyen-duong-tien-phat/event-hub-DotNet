@@ -2,7 +2,7 @@
 using EventHub.Core.Common;
 using EventHub.Core.Payments;
 using EventHub.Core.Tickets;
-using EventHub.Infrastructure.Payments;
+using EventHub.Core.Payments;
 using Moq;
 
 namespace EventHub.Tests;
@@ -32,8 +32,12 @@ public class BookingServiceTests {
 
         var request = new CreateBookingRequest {
             UserId = string.Empty,
-            TicketId = string.Empty,
-            Quantity = 1
+            EventId = string.Empty,
+            Tickets = [new BookingTicketDto
+            {
+                TicketId = string.Empty,
+                Quantity = 2
+            }]
         };
         
         // Act 
@@ -63,8 +67,12 @@ public class BookingServiceTests {
 
         var request = new CreateBookingRequest {
             UserId = string.Empty,
-            TicketId = string.Empty,
-            Quantity = 1
+            EventId = string.Empty,
+            Tickets = [new BookingTicketDto
+            {
+                TicketId = string.Empty,
+                Quantity = 2
+            }]
         };
         
         // Act 
@@ -90,8 +98,12 @@ public class BookingServiceTests {
 
         var request = new CreateBookingRequest {
             UserId = string.Empty,
-            TicketId = string.Empty,
-            Quantity = 1
+            EventId = string.Empty,
+            Tickets = [new BookingTicketDto
+            {
+                TicketId = string.Empty,
+                Quantity = 2
+            }]
         };
 
         await Assert.ThrowsAsync<KeyNotFoundException>(() => service.CreateAsync(request));
