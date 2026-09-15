@@ -17,8 +17,8 @@ public class BookingsController(BookingService bookingService) : ControllerBase 
 
         var result = await bookingService.CreateAsync(new CreateBookingRequest {
             UserId = userId,
-            TicketId = dto.TicketId,
-            Quantity = dto.Quantity
+            EventId = dto.EventId,
+            Tickets = dto.Tickets
         });
 
         if (result == null) return Conflict(new { message = "Not enough tickets remaining" });

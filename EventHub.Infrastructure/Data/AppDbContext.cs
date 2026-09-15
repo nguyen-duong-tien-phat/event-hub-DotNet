@@ -47,6 +47,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options): DbContext(opt
             .Property(b => b.Status)
             .HasConversion<string>();
         
+        modelBuilder.Entity<Booking>()
+            .Property(x => x.Tickets)
+            .HasColumnType("jsonb");
+        
         base.OnModelCreating(modelBuilder);
     }
 }

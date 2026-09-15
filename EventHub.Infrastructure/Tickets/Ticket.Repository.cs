@@ -1,3 +1,4 @@
+using EventHub.Core.Bookings;
 using EventHub.Core.Tickets;
 using EventHub.Infrastructure.Common;
 using EventHub.Infrastructure.Data;
@@ -17,16 +18,25 @@ public class TicketRepository(AppDbContext db) : Repository<Ticket>(db), ITicket
         return (items, totalCount);
     }
     
-    public async Task<bool> TryReserveAsync(string ticketId, int quantity) {
-        var rowsAffected = await Db.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE \"Tickets\" SET \"RemainingQuantity\" = \"RemainingQuantity\" - {quantity} WHERE \"Id\" = {ticketId} AND \"RemainingQuantity\" >= {quantity}"
-        );
-        return rowsAffected > 0;
+    public async Task<bool> TryReserveAsync(List<BookingTicket> items) {
+        foreach (var item in items) {
+            var rowsAffected = await Db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE \"Tickets\" SET \"RemainingQuantity\" = \"RemainingQuantity\" - {item.Quantity} WHERE \"Id\" = {item.TicketId} AND \"RemainingQuantity\" >= {item.Quantity}"
+            );
+
+            if (rowsAffected == 0) {
+                return false;
+            }
+        }
+
+        return true;
     }
     
-    public async Task ReleaseAsync(string ticketId, int quantity) {
-        await Db.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE \"Tickets\" SET \"RemainingQuantity\" = \"RemainingQuantity\" + {quantity} WHERE \"Id\" = {ticketId}"
-        );
+    public async Task ReleaseAsync(List<BookingTicket> items) {
+        foreach (var item in items) {
+            await Db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE \"Tickets\" SET \"RemainingQuantity\" = \"RemainingQuantity\" + {item.Quantity} WHERE \"Id\" = {item.TicketId}"
+            );
+        }
     }
 }

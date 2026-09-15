@@ -3,7 +3,7 @@ using EventHub.Core.Tickets;
 using Microsoft.AspNetCore.Mvc;
 using Stripe;
 
-namespace EventHub.Controllers;
+namespace EventHub.Webhooks;
 
 [ApiController]
 [Route("/webhooks")]
@@ -60,7 +60,7 @@ public class WebhooksController(
         
         booking.Status = BookingStatus.Cancelled;
         bookingRepository.Update(booking);
-        await ticketRepository.ReleaseAsync(booking.TicketId, booking.Quantity);
+        await ticketRepository.ReleaseAsync(booking.Tickets);
         await bookingRepository.SaveChangesAsync();
     }
 

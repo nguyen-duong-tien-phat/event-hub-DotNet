@@ -12,7 +12,6 @@ using EventHub.Infrastructure.Caching;
 using EventHub.Infrastructure.Common;
 using EventHub.Infrastructure.Data;
 using EventHub.Infrastructure.Events;
-using EventHub.Infrastructure.Payments;
 using EventHub.Infrastructure.Tickets;
 using EventHub.Infrastructure.Users;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -20,6 +19,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
+using Npgsql;
 using StackExchange.Redis;
 using Stripe;
 using EventService = EventHub.Core.Events.EventService;
@@ -32,7 +32,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
-builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+var dataSourceBuilder = new NpgsqlDataSourceBuilder(builder.Configuration.GetConnectionString("DefaultConnection"));
+dataSourceBuilder.EnableDynamicJson();
+builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(dataSourceBuilder.Build()));
 
 // Stripe
 StripeConfiguration.ApiKey = builder.Configuration["Stripe:SecretKey"];

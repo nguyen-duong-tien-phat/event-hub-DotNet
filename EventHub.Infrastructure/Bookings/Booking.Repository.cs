@@ -23,12 +23,11 @@ public class BookingRepository(AppDbContext db) : Repository<Booking>(db), IBook
 
     public async Task<List<Booking>> GetByEventIdAsync(string eventId) =>
         await DbSet
-            .Where(b => b.Ticket!.EventId == eventId)
-            .Include(b => b.Ticket)
+            .Where(b => b.EventId == eventId)
             .ToListAsync();
     
     public async Task<(List<Booking> Items, int TotalCount)> GetPagedByEventIdAsync(string eventId, int page, int pageSize) {
-        var query = DbSet.Where(b => b.Ticket!.EventId == eventId);
+        var query = DbSet.Where(b => b.EventId == eventId);
 
         var totalCount = await query.CountAsync();
         var items = await query

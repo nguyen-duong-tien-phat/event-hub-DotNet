@@ -11,28 +11,42 @@ public class BookingService (
     IPaymentService paymentService)
 {
     public async Task<BookingWithPaymentResult?> CreateAsync(CreateBookingRequest request) {
-        var ticket = await ticketRepository.GetByIdAsync(request.TicketId);
-        if (ticket == null) {
-            throw new KeyNotFoundException("Ticket not found");
+        List<BookingTicket>  tickets = [];
+        foreach (var item in request.Tickets) {
+            var ticket = await ticketRepository.GetByIdAsync(item.TicketId);
+            if (ticket == null) {
+                throw new KeyNotFoundException("Ticket not found");
+            }
+            tickets.Add(new BookingTicket {
+                TicketId = item.TicketId,
+                Quantity = item.Quantity,
+                UnitPrice = ticket.Price,
+            });
         }
 
         Booking booking;
         
+        decimal totalPrice = 0;
+        foreach (var item in tickets) {
+            totalPrice += item.Quantity * item.UnitPrice;
+        }
+        
         await unitOfWork.BeginTransactionAsync();
+        
+        // Create Booking
         try {
-            var reserved = await ticketRepository.TryReserveAsync(request.TicketId, request.Quantity);
+            var reserved = await ticketRepository.TryReserveAsync(tickets);
             if (!reserved) { // sold out, or not enough remaining
                 await unitOfWork.RollbackAsync();
                 return null;
-            } 
-
+            }
+            
             booking = new Booking {
+                EventId = request.EventId,
                 UserId = request.UserId,
-                TicketId = request.TicketId,
-                Quantity = request.Quantity,
+                Tickets = tickets,
                 Status = BookingStatus.Pending,
-                UnitPrice = ticket.Price,
-                TotalPrice = ticket.Price * request.Quantity
+                TotalPrice = totalPrice
             };
             
             await bookingRepository.AddAsync(booking);
@@ -45,10 +59,9 @@ public class BookingService (
             throw;
         }
         
-
+        // Payment
         try {
-            var totalAmount = ticket.Price * request.Quantity;
-            var paymentIntent = await paymentService.CreatePaymentIntentAsync(totalAmount, "usd", booking.Id);
+            var paymentIntent = await paymentService.CreatePaymentIntentAsync(totalPrice, "usd", booking.Id);
 
             booking.PaymentIntentId = paymentIntent.PaymentIntentId;
             bookingRepository.Update(booking);
@@ -59,12 +72,12 @@ public class BookingService (
                 ClientSecret = paymentIntent.ClientSecret
             };
         }
-        catch (Exception) {
+        catch (Exception ex) {
             booking.Status = BookingStatus.Cancelled;
             bookingRepository.Update(booking);
-            await ticketRepository.ReleaseAsync(booking.TicketId, booking.Quantity);
+            await ticketRepository.ReleaseAsync(booking.Tickets);
             await bookingRepository.SaveChangesAsync();
-            throw new InvalidOperationException("Failed to initialize payment. Your reservation has been released.");
+            throw new InvalidOperationException("Failed to initialize payment. Your reservation has been released.", ex);
         }
     }
 
@@ -113,7 +126,7 @@ public class BookingService (
             bookingRepository.Update(booking);
             await bookingRepository.SaveChangesAsync();
 
-            await ticketRepository.ReleaseAsync(booking.TicketId, booking.Quantity);
+            await ticketRepository.ReleaseAsync(booking.Tickets);
 
             await unitOfWork.CommitAsync();
             return booking;
@@ -133,7 +146,7 @@ public class BookingService (
             try {
                 booking.Status = BookingStatus.Cancelled;
                 bookingRepository.Update(booking);
-                await ticketRepository.ReleaseAsync(booking.TicketId, booking.Quantity);
+                await ticketRepository.ReleaseAsync(booking.Tickets);
                 await bookingRepository.SaveChangesAsync();
                 await unitOfWork.CommitAsync();
             }

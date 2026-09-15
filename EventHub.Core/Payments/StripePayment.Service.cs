@@ -1,7 +1,6 @@
-using EventHub.Core.Payments;
 using Stripe;
 
-namespace EventHub.Infrastructure.Payments;
+namespace EventHub.Core.Payments;
 
 public class StripePaymentService: IPaymentService {
     public async Task<PaymentIntentResult> CreatePaymentIntentAsync(decimal amount, string currency, string bookingId) {
