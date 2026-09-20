@@ -9,8 +9,13 @@ namespace EventHub.Events;
 [Route("events")]
 public class EventsController(EventService eventService) : ControllerBase {
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] PaginationQuery query) {
-        var result = await eventService.GetPagedAsync(query.Page, query.PageSize);
+    public async Task<IActionResult> GetAll([FromQuery] EventQuery query) {
+        var result = await eventService.GetPagedAsync(
+            query.Page, 
+            query.PageSize, 
+            query.Search, 
+            query.From, 
+            query.To);
         return Ok(result);
     }
 

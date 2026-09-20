@@ -11,14 +11,21 @@ public class EventService(
 {
     private readonly string _cacheKeyPrefix = "events:";
     
-    public async Task<PagedResult<Event>> GetPagedAsync(int page, int pageSize) {
-        var cacheKey = $"{_cacheKeyPrefix}page={page}:pageSize={pageSize}";
+    public async Task<PagedResult<Event>> GetPagedAsync(
+        int page, 
+        int pageSize, 
+        string? search, 
+        DateTime? from,
+        DateTime? to) 
+    {
+        var searchNormalize = search != null ? search.Trim().ToLower() :  string.Empty;
+        var cacheKey = $"{_cacheKeyPrefix}page={page}:pageSize={pageSize}:search={searchNormalize}:from={from}:to={to}";
         var cached = await cache.GetAsync(cacheKey);
         if (cached != null) {
             return JsonSerializer.Deserialize<PagedResult<Event>>(cached)!;
         }
 
-        var (items, totalCount) = await eventRepository.GetPagedAsync(page, pageSize);
+        var (items, totalCount) = await eventRepository.GetEventsQuery(page, pageSize, search, from, to);
         var result = new PagedResult<Event> {
             Items = items,
             Page = page,

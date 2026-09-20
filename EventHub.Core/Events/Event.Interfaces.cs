@@ -4,4 +4,12 @@ namespace EventHub.Core.Events;
 
 public interface IEventRepository: IRepository<Event> {
     Task<Event?> GetEventDetailByIdAsync(string id);
+
+    Task<(List<Event> Items, int TotalCount)> GetEventsQuery(
+        int page,
+        int pageSize,
+        string? search,
+        DateTime? from,
+        DateTime? to
+        );
 }

@@ -4,6 +4,12 @@ using EventHub.Core.Common;
 
 namespace EventHub.Core.Events;
 
+public class EventQuery : PaginationQuery {
+    public string? Search { get; set; }
+    public DateTime? From { get; set; }
+    public DateTime? To { get; set; }
+}
+
 public class CreateEventRequest {
     public required string Title { get; set; }
     public required string Description { get; set; }
