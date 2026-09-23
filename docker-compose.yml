@@ -24,12 +24,12 @@ services:
     environment:
       ConnectionStrings__DefaultConnection: ${DB_CONNECTION}
       ConnectionStrings__Redis: "redis:6379"
-      Jwt__Key: ${JWT_KEY}
+      Jwt__Key: ${Jwt__Key}
       Jwt__Issuer: "EventHub"
       Jwt__Audience: "EventHubUsers"
       Jwt__ExpiryMinutes: "60"
-      Stripe__SecretKey: ${STRIPE_SECRET_KEY}
-      Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET}
+      Stripe__SecretKey: ${Stripe__SecretKey}
+      Stripe__WebhookSecret: ${Stripe__WebhookSecret}
     depends_on:
       - postgres
       - redis

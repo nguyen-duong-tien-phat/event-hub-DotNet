@@ -38,7 +38,7 @@ dataSourceBuilder.EnableDynamicJson();
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(dataSourceBuilder.Build()));
 
 // Stripe
-StripeConfiguration.ApiKey = Environment.GetEnvironmentVariable("STRIPE_SECRET_KEY");
+StripeConfiguration.ApiKey = builder.Configuration["Stripe:SecretKey"];
 builder.Services.AddScoped<IPaymentService, StripePaymentService>();
 
 // Cache, Rate-limit
@@ -47,7 +47,7 @@ builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddScoped<IRateLimiter, RedisRateLimiter>();
 
 // JWT
-var jwtKey = Environment.GetEnvironmentVariable("JWT_KEY");
+var jwtKey = builder.Configuration["Jwt:Key"];
 var jwtIssuer = builder.Configuration["Jwt:Issuer"]!;
 var jwtAudience = builder.Configuration["Jwt:Audience"]!;
 var jwtExpiry = int.Parse(builder.Configuration["Jwt:ExpiryMinutes"]!);
