@@ -1,5 +1,8 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using EventHub.Core.Common;
 using EventHub.Core.Events;
+using EventHub.Core.Users;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -28,12 +31,13 @@ public class EventsController(EventService eventService) : ControllerBase {
     [Authorize(Roles = "Admin, Organizer")]
     [HttpPost]
     public async Task<IActionResult> Create(CreateEventDto dto) {
+        var orgId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
         var newEvent = await eventService.CreateAsync(new CreateEventRequest {
             Title = dto.Title,
             Description = dto.Description,
             StartsAt = dto.StartsAt,
             Location = dto.Location,
-            OrganizerId = dto.OrganizerId,
+            OrganizerId = orgId,
             ImageUrl = dto.ImageUrl,
             Highlights = dto.Highlights ?? []
         });
@@ -43,12 +47,19 @@ public class EventsController(EventService eventService) : ControllerBase {
     [Authorize(Roles = "Admin, Organizer")]
     [HttpPatch("{id}")]
     public async Task<IActionResult> Update(string id, UpdateEventDto dto) {
-        var updated = await eventService.UpdateAsync(id, new UpdateEventRequest {
-            Title = dto.Title,
-            Description = dto.Description,
-            StartsAt = dto.StartsAt,
-            Location = dto.Location
-        });
-        return updated == null ? NotFound() : Ok(updated);
+        var requestId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
+        var requestRole = Enum.Parse<UserRole>(User.FindFirst(ClaimTypes.Role)!.Value);
+        
+        try {
+            var updated = await eventService.UpdateAsync(requestId, requestRole, id, new UpdateEventRequest {
+                Title = dto.Title,
+                Description = dto.Description,
+                StartsAt = dto.StartsAt,
+                Location = dto.Location
+            });
+            return updated == null ? NotFound() : Ok(updated);
+        } catch (UnauthorizedAccessException) {
+            return Forbid();
+        }
     }
 }

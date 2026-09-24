@@ -63,9 +63,6 @@ public class CreateEventDto
     [Required(ErrorMessage = "Location is required")]
     [MaxLength(300)]
     public string Location { get; set; } = string.Empty;
-
-    [Required(ErrorMessage = "OrganizerId is required")]
-    public string OrganizerId { get; set; }
     
     [Required(ErrorMessage = "ImageUrl is required")]
     public required string ImageUrl { get; set; }

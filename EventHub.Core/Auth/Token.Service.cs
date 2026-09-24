@@ -9,7 +9,7 @@ namespace EventHub.Core.Auth;
 public class TokenService(string key, string issuer, string audience, int expiryMinutes) {
     public string GenerateToken(User user) {
         var claims = new List<Claim> {
-            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new(JwtRegisteredClaimNames.Sub, user.Id),
             new(JwtRegisteredClaimNames.Email, user.Email),
             new(ClaimTypes.Role, user.Role.ToString()),
         };

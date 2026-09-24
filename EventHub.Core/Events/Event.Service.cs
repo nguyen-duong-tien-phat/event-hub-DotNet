@@ -1,6 +1,7 @@
 using System.Text.Json;
 using EventHub.Core.Common;
 using EventHub.Core.Tickets;
+using EventHub.Core.Users;
 
 namespace EventHub.Core.Events;
 
@@ -80,9 +81,22 @@ public class EventService(
         return newEvent;
     }
 
-    public async Task<Event?> UpdateAsync(string id, UpdateEventRequest request) {
-        var existing = await eventRepository.GetByIdAsync(id);
+    public async Task<Event?> UpdateAsync(
+        string requestId, 
+        UserRole requestRole, 
+        string eventId, 
+        UpdateEventRequest request) 
+    {
+        var existing = await eventRepository.GetByIdAsync(eventId);
         if (existing == null) return null;
+        
+        // Admin and event organizer can update the event
+        var isOwner = requestId == existing.OrganizerId && requestRole == UserRole.Organizer;
+        var isAdmin = requestRole == UserRole.Admin;
+
+        if (!isOwner && !isAdmin) {
+            throw new UnauthorizedAccessException();
+        }
 
         if (request.Title is not null) existing.Title = request.Title;
         if (request.Description is not null) existing.Description = request.Description;
