@@ -174,4 +174,27 @@ public class BookingService (
             }
         }
     }
+    
+    public async Task HandlePaymentSucceeded(string paymentIntentId) {
+        var booking = await bookingRepository.GetByPaymentIntentId(paymentIntentId);
+        if (booking == null || booking.Status != BookingStatus.Pending) {
+            return;
+        }
+
+        booking.Status = BookingStatus.Confirmed;
+        bookingRepository.Update(booking);
+        await bookingRepository.SaveChangesAsync();
+    }
+
+    public async Task HandlePaymentFailed(string paymentIntentId) {
+        var booking = await bookingRepository.GetByPaymentIntentId(paymentIntentId);
+        if (booking == null || booking.Status != BookingStatus.Pending) {
+            return;
+        }
+        
+        booking.Status = BookingStatus.Cancelled;
+        bookingRepository.Update(booking);
+        await ticketRepository.ReleaseAsync(booking.Tickets);
+        await bookingRepository.SaveChangesAsync();
+    }
 }
