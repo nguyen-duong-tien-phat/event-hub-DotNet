@@ -35,6 +35,26 @@ public class Organizer {
     public required string Role { get; set; }
 }
 
+public class EventListItemDto {
+    public required string Id { get; set; }
+    public required string Title { get; set; }
+    public required string Description { get; set; }
+    public DateTime StartsAt { get; set; }
+    public required string Location { get; set; }
+    public required string ImageUrl { get; set; }
+    public DateTime CreatedAt { get; set; }
+
+    public static EventListItemDto FromEntity(Event ev) => new() {
+        Id = ev.Id,
+        Title = ev.Title,
+        Description = ev.Description,
+        StartsAt = ev.StartsAt,
+        Location = ev.Location,
+        ImageUrl = ev.ImageUrl,
+        CreatedAt = ev.CreatedAt
+    };
+}
+
 public class EventResponse {
     public required string Id { get; set; } 
     public required string Title { get; set; } 

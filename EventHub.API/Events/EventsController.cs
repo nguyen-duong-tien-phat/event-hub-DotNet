@@ -13,13 +13,17 @@ namespace EventHub.Events;
 public class EventsController(EventService eventService) : ControllerBase {
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] EventQuery query) {
+        if (query.From.HasValue && query.To.HasValue && query.From > query.To) {
+            return BadRequest(new { message = "'from' must be earlier than 'to'" });
+        }
+        
         var result = await eventService.GetPagedAsync(
             query.Page, 
             query.PageSize, 
             query.Search, 
             query.From, 
             query.To);
-        return Ok(result);
+        return Ok(result.Map(EventListItemDto.FromEntity));
     }
 
     [HttpGet("{id}")]
