@@ -1,14 +1,16 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using EventHub.Core.Bookings;
 using EventHub.Core.Common;
+using EventHub.Core.Users;
 
 namespace EventHub.Bookings;
 
 [ApiController]
 [Route("bookings")]
-[Authorize(Roles = "Admin, Attendee")]
+[Authorize]
 public class BookingsController(BookingService bookingService) : ControllerBase {
     [Authorize(Roles = "Admin, Attendee")]
     [HttpPost]
@@ -25,12 +27,21 @@ public class BookingsController(BookingService bookingService) : ControllerBase 
 
         return CreatedAtAction(nameof(GetById), new { id = result.Booking.Id }, BookingResponseDto.FromEntity(result.Booking));
     }
-
-    [Authorize(Roles = "Admin, Organizer")]
+    
+    // Attendee: own bookings only
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(string id) {
-        var booking = await bookingService.GetByIdAsync(id);
-        return booking == null ? NotFound() : Ok(BookingResponseDto.FromEntity(booking));
+        var requestId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
+        var requestRole = Enum.Parse<UserRole>(User.FindFirst(ClaimTypes.Role)!.Value);
+
+        try {  
+            var booking = await bookingService.GetByIdAsync(id, requestId,  requestRole);
+            if (booking == null) return NotFound();
+            return Ok(BookingResponseDto.FromEntity(booking));
+        }
+        catch (UnauthorizedAccessException) {
+            return Forbid();
+        }
     }
     
     [Authorize(Roles = "Attendee")]
@@ -50,6 +61,7 @@ public class BookingsController(BookingService bookingService) : ControllerBase 
         return Ok(result.Map(BookingResponseDto.FromEntity));
     }
     
+    [Authorize(Roles = "Admin, Attendee")]
     [HttpPatch("{id}/cancel")]
     public async Task<IActionResult> Cancel(string id) {
         var userIdClaim = User.FindFirst(JwtRegisteredClaimNames.Sub);

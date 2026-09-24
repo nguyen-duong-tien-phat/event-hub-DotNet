@@ -1,12 +1,15 @@
 using EventHub.Core.Common;
+using EventHub.Core.Events;
 using EventHub.Core.Payments;
 using EventHub.Core.Tickets;
+using EventHub.Core.Users;
 
 namespace EventHub.Core.Bookings;
 
 public class BookingService (
     IBookingRepository bookingRepository, 
     ITicketRepository ticketRepository,
+    IEventRepository eventRepository,
     IUnitOfWork unitOfWork,
     IPaymentService paymentService)
 {
@@ -93,8 +96,24 @@ public class BookingService (
         };
     }
 
-    public Task<Booking?> GetByIdAsync(string id) => bookingRepository.GetByIdAsync(id);
-    
+    public async Task<Booking?> GetByIdAsync(string id, string userId, UserRole userRole) {
+        var booking = await bookingRepository.GetByIdAsync(id);
+        if (booking == null) return null;
+
+        if (userRole == UserRole.Attendee && booking.UserId != userId) {
+            throw new UnauthorizedAccessException();
+        }
+
+        if (userRole == UserRole.Organizer) {
+            var ev = await eventRepository.GetByIdAsync(booking.EventId);
+            if (ev == null || ev.OrganizerId != userId) {
+                throw new UnauthorizedAccessException();
+            }
+        }
+
+        return booking;
+    }
+
     public Task<List<Booking>> GetByEventIdAsync(string eventId) => bookingRepository.GetByEventIdAsync(eventId);
     
     public async Task<PagedResult<Booking>> GetPagedByEventIdAsync(string evenId, int page, int pageSize) {

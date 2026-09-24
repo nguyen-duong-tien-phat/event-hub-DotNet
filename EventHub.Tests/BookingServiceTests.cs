@@ -1,5 +1,6 @@
 ﻿using EventHub.Core.Bookings;
 using EventHub.Core.Common;
+using EventHub.Core.Events;
 using EventHub.Core.Payments;
 using EventHub.Core.Tickets;
 using EventHub.Core.Payments;
@@ -20,6 +21,7 @@ public class BookingServiceTests {
         ticketRepo.Setup(r => r.GetByIdAsync(It.IsAny<string>()))
             .ReturnsAsync(new Ticket { Id = string.Empty, EventId = string.Empty, RemainingQuantity = 10, MaxPerOrder = 2, Highlights = []});
         
+        var eventRepo = new Mock<IEventRepository>();
         var paymentService = new Mock<IPaymentService>();
         paymentService
             .Setup(r => r.CreatePaymentIntentAsync(It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<string>()))
@@ -28,8 +30,13 @@ public class BookingServiceTests {
                 ClientSecret = "clientSecret",
             });
 
-        var service = new BookingService(bookingRepo.Object, ticketRepo.Object, unitOfWork.Object, paymentService.Object);
-
+        var service = new BookingService(
+            bookingRepo.Object, 
+            ticketRepo.Object, 
+            eventRepo.Object, 
+            unitOfWork.Object, 
+            paymentService.Object);
+        
         var request = new CreateBookingRequest {
             UserId = string.Empty,
             EventId = string.Empty,
@@ -61,10 +68,23 @@ public class BookingServiceTests {
             .ReturnsAsync(false); // sold out
         ticketRepo.Setup(r => r.GetByIdAsync(It.IsAny<string>()))
             .ReturnsAsync(new Ticket { Id = string.Empty, EventId = string.Empty, RemainingQuantity = 10, MaxPerOrder = 2, Highlights = []});
-
         
-        var service = new BookingService(bookingRepo.Object, ticketRepo.Object, unitOfWork.Object, new StripePaymentService());
-
+        var eventRepo = new Mock<IEventRepository>();
+        var paymentService = new Mock<IPaymentService>();
+        paymentService
+            .Setup(r => r.CreatePaymentIntentAsync(It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(new PaymentIntentResult {
+                PaymentIntentId = "paymentIntentId",
+                ClientSecret = "clientSecret",
+            });
+        
+        var service = new BookingService(
+            bookingRepo.Object, 
+            ticketRepo.Object, 
+            eventRepo.Object, 
+            unitOfWork.Object, 
+            paymentService.Object);
+        
         var request = new CreateBookingRequest {
             UserId = string.Empty,
             EventId = string.Empty,
@@ -94,8 +114,21 @@ public class BookingServiceTests {
         ticketRepo.Setup(r => r.GetByIdAsync(It.IsAny<string>()))
             .ReturnsAsync((Ticket?)null);
 
-        var service = new BookingService(bookingRepo.Object, ticketRepo.Object, unitOfWork.Object, new StripePaymentService());
-
+        var eventRepo = new Mock<IEventRepository>();
+        var paymentService = new Mock<IPaymentService>();
+        paymentService
+            .Setup(r => r.CreatePaymentIntentAsync(It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(new PaymentIntentResult {
+                PaymentIntentId = "paymentIntentId",
+                ClientSecret = "clientSecret",
+            });
+        
+        var service = new BookingService(
+            bookingRepo.Object, 
+            ticketRepo.Object, 
+            eventRepo.Object, 
+            unitOfWork.Object, 
+            paymentService.Object);
         var request = new CreateBookingRequest {
             UserId = string.Empty,
             EventId = string.Empty,
