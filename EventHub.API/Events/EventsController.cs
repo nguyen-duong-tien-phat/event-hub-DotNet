@@ -12,7 +12,7 @@ namespace EventHub.Events;
 [Route("events")]
 public class EventsController(EventService eventService) : ControllerBase {
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] EventQuery query) {
+    public async Task<ActionResult<PagedResult<EventListItemDto>>> GetAll([FromQuery] EventQuery query) {
         if (query.From.HasValue && query.To.HasValue && query.From > query.To) {
             return BadRequest(new { message = "'from' must be earlier than 'to'" });
         }
@@ -43,7 +43,7 @@ public class EventsController(EventService eventService) : ControllerBase {
             Location = dto.Location,
             OrganizerId = orgId,
             ImageUrl = dto.ImageUrl,
-            Highlights = dto.Highlights ?? []
+            Highlights = dto.Highlights
         });
         return CreatedAtAction(nameof(GetById), new { id = newEvent.Id }, newEvent);
     }

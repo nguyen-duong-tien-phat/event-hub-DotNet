@@ -1,4 +1,3 @@
-using EventHub.Core.Common;
 using EventHub.Core.Events;
 using EventHub.Infrastructure.Common;
 using EventHub.Infrastructure.Data;
@@ -45,6 +44,7 @@ public class EventRepository(AppDbContext db): Repository<Event>(db), IEventRepo
             .OrderBy(e => e.StartsAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
+            .Include(e => e.Organizer)
             .ToListAsync();
 
         return (items, totalCount);

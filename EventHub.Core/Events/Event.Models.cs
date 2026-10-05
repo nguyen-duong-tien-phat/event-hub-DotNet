@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using EventHub.Core.Tickets;
 using EventHub.Core.Common;
+using EventHub.Core.Users;
 
 namespace EventHub.Core.Events;
 
@@ -30,15 +31,19 @@ public class UpdateEventRequest {
 
 public class Organizer {
     public required string Id { get; set; }
-    public required string Email { get; set; }
     public required string FullName { get; set; }
-    public required string Role { get; set; }
+
+    public static Organizer FromUser(User user) => new() {
+        Id = user.Id,
+        FullName = user.FullName,
+    };
 }
 
 public class EventListItemDto {
     public required string Id { get; set; }
     public required string Title { get; set; }
     public required string Description { get; set; }
+    public required Organizer Organizer { get; set; }
     public DateTime StartsAt { get; set; }
     public required string Location { get; set; }
     public required string ImageUrl { get; set; }
@@ -49,6 +54,7 @@ public class EventListItemDto {
         Title = ev.Title,
         Description = ev.Description,
         StartsAt = ev.StartsAt,
+        Organizer = Organizer.FromUser(ev.Organizer!),
         Location = ev.Location,
         ImageUrl = ev.ImageUrl,
         CreatedAt = ev.CreatedAt
