@@ -49,4 +49,28 @@ public class EventRepository(AppDbContext db): Repository<Event>(db), IEventRepo
 
         return (items, totalCount);
     }
+
+    public async Task<List<Event>> GetFeaturedEventsAsync(int limit) {
+        var items = await DbSet
+            .AsNoTracking()
+            .Where(e => e.StartsAt > DateTime.UtcNow)
+            .Where(e => e.Tickets.Any())
+            .OrderBy(e => (double)e.Tickets.Sum(t => t.RemainingQuantity) / e.Tickets.Sum(t => t.TotalQuantity))
+            .ThenByDescending(e => e.Tickets.Sum(t => t.TotalQuantity - t.RemainingQuantity))
+            .Take(limit)
+            .Include(e => e.Organizer)
+            .ToListAsync();
+        return items;
+    }
+    
+    public async Task<List<Event>> GetUpcomingEventsAsync(int limit) {
+        var items = await DbSet
+            .AsNoTracking()
+            .Where(e => e.StartsAt > DateTime.UtcNow)
+            .OrderBy(e => e.StartsAt)
+            .Take(limit)
+            .Include(e => e.Organizer)
+            .ToListAsync();
+        return items;
+    }
 }

@@ -12,4 +12,7 @@ public interface IEventRepository: IRepository<Event> {
         DateTime? from,
         DateTime? to
         );
+
+    Task<List<Event>> GetFeaturedEventsAsync(int limit = 5);
+    Task<List<Event>> GetUpcomingEventsAsync(int limit = 5);
 }

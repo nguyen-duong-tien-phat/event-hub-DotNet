@@ -25,6 +25,20 @@ public class EventsController(EventService eventService) : ControllerBase {
             query.To);
         return Ok(result.Map(EventListItemDto.FromEntity));
     }
+    
+    
+
+    [HttpGet("featured")]
+    public async Task<ActionResult<List<EventListItemDto>>> GetFeatured([FromQuery] int limit = 5) {
+        var result = await eventService.GetFeaturedEventsAsync(Math.Clamp(limit, 1, 10));
+        return Ok(result.Select(EventListItemDto.FromEntity).ToList());
+    }
+
+    [HttpGet("upcoming")]
+    public async Task<ActionResult<List<EventListItemDto>>> GetUpcoming([FromQuery] int limit = 5) {
+        var result = await eventService.GetUpcomingEventsAsync(Math.Clamp(limit, 1, 10));
+        return Ok(result.Select(EventListItemDto.FromEntity).ToList());
+    }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(string id) {

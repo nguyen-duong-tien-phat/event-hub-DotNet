@@ -58,6 +58,12 @@ public class EventService(
         
         return eventResponse;
     }
+    
+    public async Task<List<Event>> GetFeaturedEventsAsync(int limit) =>
+        await eventRepository.GetFeaturedEventsAsync(limit);
+    
+    public async Task<List<Event>> GetUpcomingEventsAsync(int limit) =>
+        await eventRepository.GetUpcomingEventsAsync(limit);
 
 
     public async Task<Event> CreateAsync(CreateEventRequest request) {
