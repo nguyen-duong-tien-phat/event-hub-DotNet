@@ -16,17 +16,21 @@ public class EventService(
         int page, 
         int pageSize, 
         string? search, 
+        string? category,
+        decimal? minPrice,
+        decimal? maxPrice,
         DateTime? from,
         DateTime? to) 
     {
         var searchNormalize = search != null ? search.Trim().ToLower() :  string.Empty;
-        var cacheKey = $"{_cacheKeyPrefix}page={page}:pageSize={pageSize}:search={searchNormalize}:from={from}:to={to}";
+        var categoryNormalize = category != null ? category.Trim().ToLower() : string.Empty;
+        var cacheKey = $"{_cacheKeyPrefix}page={page}:pageSize={pageSize}:search={searchNormalize}:category={categoryNormalize}:minPrice={minPrice}:maxPrice={maxPrice}:from={from}:to={to}";
         var cached = await cache.GetAsync(cacheKey);
         if (cached != null) {
             return JsonSerializer.Deserialize<PagedResult<Event>>(cached)!;
         }
 
-        var (items, totalCount) = await eventRepository.GetEventsQuery(page, pageSize, search, from, to);
+        var (items, totalCount) = await eventRepository.GetEventsQuery(page, pageSize, search, category, minPrice, maxPrice, from, to);
         var result = new PagedResult<Event> {
             Items = items,
             Page = page,
@@ -49,10 +53,16 @@ public class EventService(
             Location = eventDetail.Location,
             ImageUrl = eventDetail.ImageUrl,
             Highlights = eventDetail.Highlights,
+            Category = eventDetail.Category,
+            EndsAt = eventDetail.EndsAt,
+            DoorsOpenAt = eventDetail.DoorsOpenAt,
+            AgeRestriction = eventDetail.AgeRestriction,
+            RefundPolicy = eventDetail.RefundPolicy,
             Tickets = tickets,
             Organizer = new Organizer {
                 Id = eventDetail.Organizer!.Id,
                 FullName = eventDetail.Organizer.FullName,
+                Email = eventDetail.Organizer.Email,
             }
         };
         
@@ -74,8 +84,14 @@ public class EventService(
             Location = request.Location,
             OrganizerId = request.OrganizerId,
             ImageUrl = request.ImageUrl,
-            Highlights = request.Highlights
+            Highlights = request.Highlights,
+            Category = NormalizeCategory(request.Category),
+            EndsAt = request.EndsAt,
+            DoorsOpenAt = request.DoorsOpenAt,
+            AgeRestriction = request.AgeRestriction,
+            RefundPolicy = request.RefundPolicy
         };
+        ValidateTimes(newEvent);
 
         await eventRepository.AddAsync(newEvent);
         await eventRepository.SaveChangesAsync();
@@ -106,6 +122,12 @@ public class EventService(
         if (request.Description is not null) existing.Description = request.Description;
         if (request.StartsAt is not null) existing.StartsAt = request.StartsAt.Value;
         if (request.Location is not null) existing.Location = request.Location;
+        if (request.Category is not null) existing.Category = NormalizeCategory(request.Category);
+        if (request.EndsAt is not null) existing.EndsAt = request.EndsAt;
+        if (request.DoorsOpenAt is not null) existing.DoorsOpenAt = request.DoorsOpenAt;
+        if (request.AgeRestriction is not null) existing.AgeRestriction = request.AgeRestriction;
+        if (request.RefundPolicy is not null) existing.RefundPolicy = request.RefundPolicy;
+        ValidateTimes(existing);
 
         eventRepository.Update(existing);
         await eventRepository.SaveChangesAsync();
@@ -113,5 +135,18 @@ public class EventService(
         await cache.RemoveByPrefixAsync(_cacheKeyPrefix);
         
         return existing;
+    }
+
+    private static string NormalizeCategory(string? category) =>
+        string.IsNullOrWhiteSpace(category) ? "Other" : category.Trim();
+
+    /// <summary>Doors open before the event starts, and it ends after it starts.</summary>
+    private static void ValidateTimes(Event ev) {
+        if (ev.EndsAt is not null && ev.EndsAt <= ev.StartsAt) {
+            throw new ArgumentException("EndsAt must be later than StartsAt.");
+        }
+        if (ev.DoorsOpenAt is not null && ev.DoorsOpenAt > ev.StartsAt) {
+            throw new ArgumentException("DoorsOpenAt must not be later than StartsAt.");
+        }
     }
 }

@@ -9,6 +9,9 @@ public interface IEventRepository: IRepository<Event> {
         int page,
         int pageSize,
         string? search,
+        string? category,
+        decimal? minPrice,
+        decimal? maxPrice,
         DateTime? from,
         DateTime? to
         );

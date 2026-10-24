@@ -19,6 +19,9 @@ public class EventRepository(AppDbContext db): Repository<Event>(db), IEventRepo
         int page,
         int pageSize,
         string? search,
+        string? category,
+        decimal? minPrice,
+        decimal? maxPrice,
         DateTime? from,
         DateTime? to
         ) {
@@ -30,6 +33,18 @@ public class EventRepository(AppDbContext db): Repository<Event>(db), IEventRepo
                 e.Location.Contains(search) || 
                 e.Description.Contains(search)
                 );
+        }
+
+        if (!string.IsNullOrWhiteSpace(category)) {
+            var categoryNormalized = category.Trim().ToLower();
+            query = query.Where(e => e.Category.ToLower() == categoryNormalized);
+        }
+
+        if (minPrice != null || maxPrice != null) {
+            // Price filters look at the cheapest ticket, so events without tickets drop out.
+            query = query.Where(e => e.Tickets.Any());
+            if (minPrice != null) query = query.Where(e => e.Tickets.Min(t => t.Price) >= minPrice.Value);
+            if (maxPrice != null) query = query.Where(e => e.Tickets.Min(t => t.Price) <= maxPrice.Value);
         }
 
         if (from != null) {
@@ -45,6 +60,7 @@ public class EventRepository(AppDbContext db): Repository<Event>(db), IEventRepo
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Include(e => e.Organizer)
+            .Include(e => e.Tickets)
             .ToListAsync();
 
         return (items, totalCount);
@@ -59,6 +75,7 @@ public class EventRepository(AppDbContext db): Repository<Event>(db), IEventRepo
             .ThenByDescending(e => e.Tickets.Sum(t => t.TotalQuantity - t.RemainingQuantity))
             .Take(limit)
             .Include(e => e.Organizer)
+            .Include(e => e.Tickets)
             .ToListAsync();
         return items;
     }
@@ -70,6 +87,7 @@ public class EventRepository(AppDbContext db): Repository<Event>(db), IEventRepo
             .OrderBy(e => e.StartsAt)
             .Take(limit)
             .Include(e => e.Organizer)
+            .Include(e => e.Tickets)
             .ToListAsync();
         return items;
     }

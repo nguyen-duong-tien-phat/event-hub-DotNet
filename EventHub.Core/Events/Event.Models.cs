@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using EventHub.Core.Tickets;
 using EventHub.Core.Common;
 using EventHub.Core.Users;
@@ -7,6 +8,11 @@ namespace EventHub.Core.Events;
 
 public class EventQuery : PaginationQuery {
     public string? Search { get; set; }
+    public string? Category { get; set; }
+
+    /// <summary>Filters on the price of an event's cheapest ticket.</summary>
+    public decimal? MinPrice { get; set; }
+    public decimal? MaxPrice { get; set; }
     public DateTime? From { get; set; }
     public DateTime? To { get; set; }
 }
@@ -19,6 +25,11 @@ public class CreateEventRequest {
     public required string OrganizerId { get; set; }
     public required string ImageUrl { get; set; }
     public List<string> Highlights { get; set; } = [];
+    public string Category { get; set; } = "Other";
+    public DateTime? EndsAt { get; set; }
+    public DateTime? DoorsOpenAt { get; set; }
+    public string? AgeRestriction { get; set; }
+    public string? RefundPolicy { get; set; }
 }
 
 public class UpdateEventRequest {
@@ -26,12 +37,24 @@ public class UpdateEventRequest {
     public string? Description { get; set; }
     public DateTime? StartsAt { get; set; }
     public string? Location { get; set; }
+    public string? Category { get; set; }
+    public DateTime? EndsAt { get; set; }
+    public DateTime? DoorsOpenAt { get; set; }
+    public string? AgeRestriction { get; set; }
+    public string? RefundPolicy { get; set; }
 }
 
 
 public class Organizer {
     public required string Id { get; set; }
     public required string FullName { get; set; }
+
+    /// <summary>
+    /// Contact email. Only filled in on the event detail response, so it does
+    /// not show up in event lists.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Email { get; set; }
 
     public static Organizer FromUser(User user) => new() {
         Id = user.Id,
@@ -47,6 +70,10 @@ public class EventListItemDto {
     public DateTime StartsAt { get; set; }
     public required string Location { get; set; }
     public required string ImageUrl { get; set; }
+    public string Category { get; set; } = string.Empty;
+
+    /// <summary>Price of the cheapest ticket, or null if the event has none.</summary>
+    public decimal? MinPrice { get; set; }
     public DateTime CreatedAt { get; set; }
 
     public static EventListItemDto FromEntity(Event ev) => new() {
@@ -57,6 +84,8 @@ public class EventListItemDto {
         Organizer = Organizer.FromUser(ev.Organizer!),
         Location = ev.Location,
         ImageUrl = ev.ImageUrl,
+        Category = ev.Category,
+        MinPrice = ev.Tickets.Count == 0 ? null : ev.Tickets.Min(t => t.Price),
         CreatedAt = ev.CreatedAt
     };
 }
@@ -69,6 +98,11 @@ public class EventResponse {
     public required string Location { get; set; } 
     public required string ImageUrl { get; set; } 
     public List<string> Highlights { get; set; } = [];
+    public string Category { get; set; } = string.Empty;
+    public DateTime? EndsAt { get; set; }
+    public DateTime? DoorsOpenAt { get; set; }
+    public string? AgeRestriction { get; set; }
+    public string? RefundPolicy { get; set; }
     public required Organizer Organizer { get; set; }
     public List<Ticket> Tickets { get; set; } = [];
 }
@@ -93,7 +127,19 @@ public class CreateEventDto
     [Required(ErrorMessage = "ImageUrl is required")]
     public required string ImageUrl { get; set; }
     
-    public List<string> Highlights { get; set; }
+    public List<string> Highlights { get; set; } = [];
+
+    [MaxLength(50)]
+    public string Category { get; set; } = "Other";
+
+    public DateTime? EndsAt { get; set; }
+    public DateTime? DoorsOpenAt { get; set; }
+
+    [MaxLength(100)]
+    public string? AgeRestriction { get; set; }
+
+    [MaxLength(500)]
+    public string? RefundPolicy { get; set; }
 }
 
 public class UpdateEventDto {
@@ -108,4 +154,16 @@ public class UpdateEventDto {
 
     [MaxLength(300)]
     public string? Location { get; set; }
+
+    [MaxLength(50)]
+    public string? Category { get; set; }
+
+    public DateTime? EndsAt { get; set; }
+    public DateTime? DoorsOpenAt { get; set; }
+
+    [MaxLength(100)]
+    public string? AgeRestriction { get; set; }
+
+    [MaxLength(500)]
+    public string? RefundPolicy { get; set; }
 }

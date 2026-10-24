@@ -13,5 +13,14 @@ public class Event(): BaseEntity("event") {
     public User? Organizer { get; set; }
     public required string ImageUrl { get; set; }
     public required List<string> Highlights { get; set; } = [];
+
+    /// <summary>Free-form label such as "Concert" or "Festival"; used for filtering.</summary>
+    public string Category { get; set; } = "Other";
+    public DateTime? EndsAt { get; set; }
+    public DateTime? DoorsOpenAt { get; set; }
+
+    /// <summary>For example "18+ with ID".</summary>
+    public string? AgeRestriction { get; set; }
+    public string? RefundPolicy { get; set; }
     public ICollection<Ticket> Tickets { get; set; } = [];
 }

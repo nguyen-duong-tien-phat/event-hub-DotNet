@@ -17,10 +17,17 @@ public class EventsController(EventService eventService) : ControllerBase {
             return BadRequest(new { message = "'from' must be earlier than 'to'" });
         }
         
+        if (query.MinPrice.HasValue && query.MaxPrice.HasValue && query.MinPrice > query.MaxPrice) {
+            return BadRequest(new { message = "'minPrice' must not be higher than 'maxPrice'" });
+        }
+
         var result = await eventService.GetPagedAsync(
             query.Page, 
             query.PageSize, 
             query.Search, 
+            query.Category,
+            query.MinPrice,
+            query.MaxPrice,
             query.From, 
             query.To);
         return Ok(result.Map(EventListItemDto.FromEntity));
@@ -50,16 +57,25 @@ public class EventsController(EventService eventService) : ControllerBase {
     [HttpPost]
     public async Task<IActionResult> Create(CreateEventDto dto) {
         var orgId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
-        var newEvent = await eventService.CreateAsync(new CreateEventRequest {
-            Title = dto.Title,
-            Description = dto.Description,
-            StartsAt = dto.StartsAt,
-            Location = dto.Location,
-            OrganizerId = orgId,
-            ImageUrl = dto.ImageUrl,
-            Highlights = dto.Highlights
-        });
-        return CreatedAtAction(nameof(GetById), new { id = newEvent.Id }, newEvent);
+        try {
+            var newEvent = await eventService.CreateAsync(new CreateEventRequest {
+                Title = dto.Title,
+                Description = dto.Description,
+                StartsAt = dto.StartsAt,
+                Location = dto.Location,
+                OrganizerId = orgId,
+                ImageUrl = dto.ImageUrl,
+                Highlights = dto.Highlights,
+                Category = dto.Category,
+                EndsAt = dto.EndsAt,
+                DoorsOpenAt = dto.DoorsOpenAt,
+                AgeRestriction = dto.AgeRestriction,
+                RefundPolicy = dto.RefundPolicy
+            });
+            return CreatedAtAction(nameof(GetById), new { id = newEvent.Id }, newEvent);
+        } catch (ArgumentException e) {
+            return BadRequest(new { message = e.Message });
+        }
     }
 
     [Authorize(Roles = "Admin, Organizer")]
@@ -73,11 +89,18 @@ public class EventsController(EventService eventService) : ControllerBase {
                 Title = dto.Title,
                 Description = dto.Description,
                 StartsAt = dto.StartsAt,
-                Location = dto.Location
+                Location = dto.Location,
+                Category = dto.Category,
+                EndsAt = dto.EndsAt,
+                DoorsOpenAt = dto.DoorsOpenAt,
+                AgeRestriction = dto.AgeRestriction,
+                RefundPolicy = dto.RefundPolicy
             });
             return updated == null ? NotFound() : Ok(updated);
         } catch (UnauthorizedAccessException) {
             return Forbid();
+        } catch (ArgumentException e) {
+            return BadRequest(new { message = e.Message });
         }
     }
 }
