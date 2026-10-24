@@ -5,6 +5,7 @@ using EventHub.Core.Bookings;
 using EventHub.Core.Common;
 using EventHub.Core.Events;
 using EventHub.Core.Payments;
+using EventHub.Core.SavedEvents;
 using EventHub.Core.Tickets;
 using EventHub.Core.Users;
 using EventHub.Infrastructure.Bookings;
@@ -12,6 +13,7 @@ using EventHub.Infrastructure.Caching;
 using EventHub.Infrastructure.Common;
 using EventHub.Infrastructure.Data;
 using EventHub.Infrastructure.Events;
+using EventHub.Infrastructure.SavedEvents;
 using EventHub.Infrastructure.Tickets;
 using EventHub.Infrastructure.Users;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -26,7 +28,7 @@ using Stripe;
 using EventService = EventHub.Core.Events.EventService;
 using TokenService = EventHub.Core.Auth.TokenService;
 
-Env.Load("../.env");
+Env.Load("../.env"); 
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,11 +36,11 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 
-var dataSourceBuilder = new NpgsqlDataSourceBuilder(builder.Configuration.GetConnectionString("DefaultConnection"));
-dataSourceBuilder.EnableDynamicJson();
 // Build the data source once. AddDbContext's callback runs for every request, and
 // NpgsqlDataSourceBuilder.Build() is not safe to call concurrently: doing it per request
 // throws "Parameter 'factory'" as soon as two requests arrive together.
+var dataSourceBuilder = new NpgsqlDataSourceBuilder(builder.Configuration.GetConnectionString("DefaultConnection"));
+dataSourceBuilder.EnableDynamicJson();
 var dataSource = dataSourceBuilder.Build();
 builder.Services.AddSingleton(dataSource);
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(dataSource));
@@ -90,6 +92,8 @@ builder.Services.AddScoped<IBookingRepository, BookingRepository>();
 builder.Services.AddScoped<EventService>();
 builder.Services.AddScoped<IEventRepository, EventRepository>();
 builder.Services.AddScoped<BookingService>();
+builder.Services.AddScoped<ISavedEventRepository, SavedEventRepository>();
+builder.Services.AddScoped<SavedEventService>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 builder.Services.AddHostedService<BookingExpiryJob>();

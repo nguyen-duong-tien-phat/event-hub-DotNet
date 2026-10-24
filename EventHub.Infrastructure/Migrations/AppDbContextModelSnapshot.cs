@@ -39,6 +39,9 @@ namespace EventHub.Infrastructure.Migrations
                     b.Property<string>("PaymentIntentId")
                         .HasColumnType("text");
 
+                    b.Property<decimal>("ServiceFee")
+                        .HasColumnType("numeric");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("text");
@@ -69,12 +72,25 @@ namespace EventHub.Infrastructure.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("text");
 
+                    b.Property<string>("AgeRestriction")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("DoorsOpenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EndsAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.PrimitiveCollection<List<string>>("Highlights")
                         .IsRequired()
@@ -94,6 +110,9 @@ namespace EventHub.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("RefundPolicy")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("StartsAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -109,6 +128,35 @@ namespace EventHub.Infrastructure.Migrations
                     b.HasIndex("OrganizerId");
 
                     b.ToTable("Events");
+                });
+
+            modelBuilder.Entity("EventHub.Core.SavedEvents.SavedEvent", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EventId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId");
+
+                    b.HasIndex("UserId", "EventId")
+                        .IsUnique();
+
+                    b.ToTable("SavedEvents");
                 });
 
             modelBuilder.Entity("EventHub.Core.Tickets.Ticket", b =>
@@ -207,6 +255,23 @@ namespace EventHub.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Organizer");
+                });
+
+            modelBuilder.Entity("EventHub.Core.SavedEvents.SavedEvent", b =>
+                {
+                    b.HasOne("EventHub.Core.Events.Event", "Event")
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("EventHub.Core.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Event");
                 });
 
             modelBuilder.Entity("EventHub.Core.Tickets.Ticket", b =>

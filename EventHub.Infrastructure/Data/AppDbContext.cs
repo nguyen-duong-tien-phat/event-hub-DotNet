@@ -1,6 +1,7 @@
 using EventHub.Core.Bookings;
 using EventHub.Core.Common;
 using EventHub.Core.Events;
+using EventHub.Core.SavedEvents;
 using EventHub.Core.Tickets;
 using EventHub.Core.Users;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options): DbContext(opt
     public DbSet<Event> Events => Set<Event>();
     public DbSet<Ticket> Tickets => Set<Ticket>();
     public DbSet<Booking> Bookings => Set<Booking>();
+    public DbSet<SavedEvent> SavedEvents => Set<SavedEvent>();
     
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) {
         var entries = ChangeTracker.Entries<BaseEntity>()
@@ -51,6 +53,21 @@ public class AppDbContext(DbContextOptions<AppDbContext> options): DbContext(opt
             .Property(x => x.Tickets)
             .HasColumnType("jsonb");
         
+        modelBuilder.Entity<SavedEvent>().Property(s => s.Id).ValueGeneratedNever();
+        modelBuilder.Entity<SavedEvent>()
+            .HasIndex(s => new { s.UserId, s.EventId })
+            .IsUnique();
+        modelBuilder.Entity<SavedEvent>()
+            .HasOne(s => s.Event)
+            .WithMany()
+            .HasForeignKey(s => s.EventId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<SavedEvent>()
+            .HasOne<User>()
+            .WithMany()
+            .HasForeignKey(s => s.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         base.OnModelCreating(modelBuilder);
     }
 }
