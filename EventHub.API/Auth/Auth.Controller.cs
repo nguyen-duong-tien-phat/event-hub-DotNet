@@ -17,7 +17,7 @@ public class AuthController(UserService userService, TokenService tokenService, 
         var rateLimitKey = $"rateLimit:login:{ipAddress}";
 
         var allowed =
-            await rateLimiter.IsAllowedAsync(rateLimitKey, maxAttempts: 5, window: TimeSpan.FromMicroseconds(1));
+            await rateLimiter.IsAllowedAsync(rateLimitKey, maxAttempts: 5, window: TimeSpan.FromMinutes(1));
 
         if (!allowed) {
             return StatusCode(429, new { message = "Too many login attempts. Try again later." });
