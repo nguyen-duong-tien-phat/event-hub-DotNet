@@ -163,4 +163,32 @@ public class BookingFlowTests {
             CreateService().ConfirmPaymentAsync(booking.Id, "user_2"));
         _payment.Verify(p => p.IsPaymentSucceededAsync(It.IsAny<string>()), Times.Never);
     }
+
+    [Fact]
+    public async Task ToResponsesAsync_LoadsEachEventOnce_AndNeverInParallel() {
+        var running = 0;
+        var overlapped = false;
+        _eventRepo.Setup(r => r.GetByIdAsync(It.IsAny<string>())).Returns(async (string id) => {
+            if (Interlocked.Increment(ref running) > 1) overlapped = true;
+            await Task.Delay(20);
+            Interlocked.Decrement(ref running);
+            return new Event {
+                Id = id, Title = $"Event {id}", Description = "d", Location = "L", OrganizerId = "o",
+                ImageUrl = "u", Highlights = [], StartsAt = DateTime.UtcNow,
+            };
+        });
+        var bookings = new[] {
+            new Booking { EventId = "event_a", UserId = "u" },
+            new Booking { EventId = "event_b", UserId = "u" },
+            new Booking { EventId = "event_a", UserId = "u" },
+            new Booking { EventId = "event_c", UserId = "u" },
+        };
+
+        var responses = await CreateService().ToResponsesAsync(bookings);
+
+        Assert.Equal(4, responses.Count);
+        Assert.Equal(["Event event_a", "Event event_b", "Event event_a", "Event event_c"], responses.Select(r => r.Event!.Title));
+        Assert.False(overlapped, "two queries ran on the shared DbContext at the same time");
+        _eventRepo.Verify(r => r.GetByIdAsync("event_a"), Times.Once);
+    }
 }

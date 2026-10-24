@@ -62,7 +62,7 @@ public class BookingsController(BookingService bookingService) : ControllerBase 
 
         var result = await bookingService.GetPagedByUserIdAsync(userId, query.Page, query.PageSize);
         return Ok(new PagedResult<BookingResponseDto> {
-            Items = (await Task.WhenAll(result.Items.Select(b => bookingService.ToResponseAsync(b)))).ToList(),
+            Items = await bookingService.ToResponsesAsync(result.Items),
             Page = result.Page,
             PageSize = result.PageSize,
             TotalCount = result.TotalCount
@@ -74,7 +74,7 @@ public class BookingsController(BookingService bookingService) : ControllerBase 
     public async Task<IActionResult> GetByEvent([FromQuery] PaginationQuery query, string eventId) {
         var result = await bookingService.GetPagedByEventIdAsync(eventId, query.Page, query.PageSize);
         return Ok(new PagedResult<BookingResponseDto> {
-            Items = (await Task.WhenAll(result.Items.Select(b => bookingService.ToResponseAsync(b)))).ToList(),
+            Items = await bookingService.ToResponsesAsync(result.Items),
             Page = result.Page,
             PageSize = result.PageSize,
             TotalCount = result.TotalCount

@@ -106,35 +106,54 @@ public class BookingService (
     }
 
     /// <summary>The booking as sent to clients, with its event and ticket names.</summary>
-    public async Task<BookingResponseDto> ToResponseAsync(Booking booking, string? clientSecret = null) {
-        var ev = await eventRepository.GetByIdAsync(booking.EventId);
+    public async Task<BookingResponseDto> ToResponseAsync(Booking booking, string? clientSecret = null) =>
+        ToResponse(booking, await eventRepository.GetByIdAsync(booking.EventId), clientSecret);
 
-        return new BookingResponseDto {
-            Id = booking.Id,
-            EventId = booking.EventId,
-            Event = ev == null ? null : new BookingEventDto {
-                Id = ev.Id,
-                Title = ev.Title,
-                StartsAt = ev.StartsAt,
-                Location = ev.Location,
-                ImageUrl = ev.ImageUrl,
-            },
-            Tickets = booking.Tickets.Select(t => new BookingTicketItemDto {
-                TicketId = t.TicketId,
-                Type = t.TicketType,
-                Quantity = t.Quantity,
-                UnitPrice = t.UnitPrice,
-            }).ToList(),
-            Quantity = booking.Tickets.Sum(t => t.Quantity),
-            Subtotal = booking.TotalPrice - booking.ServiceFee,
-            ServiceFee = booking.ServiceFee,
-            TotalPrice = booking.TotalPrice,
-            Status = booking.Status.ToString(),
-            CreatedAt = booking.CreatedAt,
-            ExpiresAt = booking.CreatedAt + HoldDuration,
-            ClientSecret = string.IsNullOrEmpty(clientSecret) ? null : clientSecret,
-        };
+    /// <summary>
+    /// Several bookings at once. They are mapped one after another, never in parallel: the
+    /// repositories share one DbContext per request, which allows a single query at a time.
+    /// Each event is loaded once, however many bookings point at it.
+    /// </summary>
+    public async Task<List<BookingResponseDto>> ToResponsesAsync(IEnumerable<Booking> bookings) {
+        var events = new Dictionary<string, Event?>();
+        var responses = new List<BookingResponseDto>();
+
+        foreach (var booking in bookings) {
+            if (!events.TryGetValue(booking.EventId, out var ev)) {
+                ev = await eventRepository.GetByIdAsync(booking.EventId);
+                events[booking.EventId] = ev;
+            }
+            responses.Add(ToResponse(booking, ev));
+        }
+
+        return responses;
     }
+
+    private static BookingResponseDto ToResponse(Booking booking, Event? ev, string? clientSecret = null) => new() {
+        Id = booking.Id,
+        EventId = booking.EventId,
+        Event = ev == null ? null : new BookingEventDto {
+            Id = ev.Id,
+            Title = ev.Title,
+            StartsAt = ev.StartsAt,
+            Location = ev.Location,
+            ImageUrl = ev.ImageUrl,
+        },
+        Tickets = booking.Tickets.Select(t => new BookingTicketItemDto {
+            TicketId = t.TicketId,
+            Type = t.TicketType,
+            Quantity = t.Quantity,
+            UnitPrice = t.UnitPrice,
+        }).ToList(),
+        Quantity = booking.Tickets.Sum(t => t.Quantity),
+        Subtotal = booking.TotalPrice - booking.ServiceFee,
+        ServiceFee = booking.ServiceFee,
+        TotalPrice = booking.TotalPrice,
+        Status = booking.Status.ToString(),
+        CreatedAt = booking.CreatedAt,
+        ExpiresAt = booking.CreatedAt + HoldDuration,
+        ClientSecret = string.IsNullOrEmpty(clientSecret) ? null : clientSecret,
+    };
 
     /// <summary>
     /// Asks Stripe whether the booking has been paid and confirms it if so. Lets the
