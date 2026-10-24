@@ -36,7 +36,12 @@ builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 
 var dataSourceBuilder = new NpgsqlDataSourceBuilder(builder.Configuration.GetConnectionString("DefaultConnection"));
 dataSourceBuilder.EnableDynamicJson();
-builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(dataSourceBuilder.Build()));
+// Build the data source once. AddDbContext's callback runs for every request, and
+// NpgsqlDataSourceBuilder.Build() is not safe to call concurrently: doing it per request
+// throws "Parameter 'factory'" as soon as two requests arrive together.
+var dataSource = dataSourceBuilder.Build();
+builder.Services.AddSingleton(dataSource);
+builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(dataSource));
 
 // Stripe
 StripeConfiguration.ApiKey = builder.Configuration["Stripe:SecretKey"];
