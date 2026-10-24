@@ -7,7 +7,7 @@ namespace EventHub.BackgroundJobs;
 
 public class BookingExpiryJob(IServiceScopeFactory scopeFactory): BackgroundService {
     private static readonly TimeSpan CheckInterval = TimeSpan.FromHours(12);
-    private static readonly TimeSpan ExpiryThreshold = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan ExpiryThreshold = BookingService.HoldDuration;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
         while (!stoppingToken.IsCancellationRequested) {

@@ -19,7 +19,7 @@ public class BookingServiceTests {
             .Setup(r => r.TryReserveAsync(It.IsAny<List<BookingTicket>>()))
             .ReturnsAsync(true);
         ticketRepo.Setup(r => r.GetByIdAsync(It.IsAny<string>()))
-            .ReturnsAsync(new Ticket { Id = string.Empty, EventId = string.Empty, RemainingQuantity = 10, MaxPerOrder = 2, Highlights = []});
+            .ReturnsAsync(new Ticket { Id = string.Empty, EventId = string.Empty, Price = 10m, RemainingQuantity = 10, MaxPerOrder = 2, Highlights = []});
         
         var eventRepo = new Mock<IEventRepository>();
         var paymentService = new Mock<IPaymentService>();

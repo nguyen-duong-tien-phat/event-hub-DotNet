@@ -17,15 +17,24 @@ public class BookingsController(BookingService bookingService) : ControllerBase 
     public async Task<IActionResult> Create(CreateBookingDto dto) {
         var userId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
 
-        var result = await bookingService.CreateAsync(new CreateBookingRequest {
-            UserId = userId,
-            EventId = dto.EventId,
-            Tickets = dto.Tickets
-        });
+        try {
+            var result = await bookingService.CreateAsync(new CreateBookingRequest {
+                UserId = userId,
+                EventId = dto.EventId,
+                Tickets = dto.Tickets
+            });
 
-        if (result == null) return Conflict(new { message = "Not enough tickets remaining" });
+            if (result == null) return Conflict(new { message = "Not enough tickets remaining" });
 
-        return CreatedAtAction(nameof(GetById), new { id = result.Booking.Id }, BookingResponseDto.FromEntity(result.Booking));
+            var response = await bookingService.ToResponseAsync(result.Booking, result.ClientSecret);
+            return CreatedAtAction(nameof(GetById), new { id = result.Booking.Id }, response);
+        }
+        catch (KeyNotFoundException e) {
+            return NotFound(new { message = e.Message });
+        }
+        catch (ArgumentException e) {
+            return BadRequest(new { message = e.Message });
+        }
     }
     
     // Attendee: own bookings only
@@ -37,30 +46,56 @@ public class BookingsController(BookingService bookingService) : ControllerBase 
         try {  
             var booking = await bookingService.GetByIdAsync(id, requestId,  requestRole);
             if (booking == null) return NotFound();
-            return Ok(BookingResponseDto.FromEntity(booking));
+            return Ok(await bookingService.ToResponseAsync(booking));
         }
         catch (UnauthorizedAccessException) {
             return Forbid();
         }
     }
     
-    [Authorize(Roles = "Attendee")]
+    // Admins can book (see Create), so they need to see their own bookings too.
+    [Authorize(Roles = "Admin, Attendee")]
     [HttpGet("me")]
     public async Task<IActionResult> GetMyBookings([FromQuery] PaginationQuery query) {
         var userIdClaim = User.FindFirst(JwtRegisteredClaimNames.Sub)!;
         var userId = userIdClaim.Value;
 
         var result = await bookingService.GetPagedByUserIdAsync(userId, query.Page, query.PageSize);
-        return Ok(result.Map(BookingResponseDto.FromEntity));
+        return Ok(new PagedResult<BookingResponseDto> {
+            Items = (await Task.WhenAll(result.Items.Select(b => bookingService.ToResponseAsync(b)))).ToList(),
+            Page = result.Page,
+            PageSize = result.PageSize,
+            TotalCount = result.TotalCount
+        });
     }
     
     [Authorize(Roles = "Admin, Organizer")]
     [HttpGet("by-event/{eventId}")]
     public async Task<IActionResult> GetByEvent([FromQuery] PaginationQuery query, string eventId) {
         var result = await bookingService.GetPagedByEventIdAsync(eventId, query.Page, query.PageSize);
-        return Ok(result.Map(BookingResponseDto.FromEntity));
+        return Ok(new PagedResult<BookingResponseDto> {
+            Items = (await Task.WhenAll(result.Items.Select(b => bookingService.ToResponseAsync(b)))).ToList(),
+            Page = result.Page,
+            PageSize = result.PageSize,
+            TotalCount = result.TotalCount
+        });
     }
     
+    /// <summary>Checks the payment with Stripe and confirms the booking if it was paid.</summary>
+    [Authorize(Roles = "Admin, Attendee")]
+    [HttpPost("{id}/confirm")]
+    public async Task<IActionResult> Confirm(string id) {
+        var userId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
+
+        try {
+            var booking = await bookingService.ConfirmPaymentAsync(id, userId);
+            return booking == null ? NotFound() : Ok(await bookingService.ToResponseAsync(booking));
+        }
+        catch (UnauthorizedAccessException) {
+            return Forbid();
+        }
+    }
+
     [Authorize(Roles = "Admin, Attendee")]
     [HttpPatch("{id}/cancel")]
     public async Task<IActionResult> Cancel(string id) {
@@ -70,7 +105,7 @@ public class BookingsController(BookingService bookingService) : ControllerBase 
 
         try {
             var booking = await bookingService.CancelAsync(id, userId);
-            return booking == null ? NotFound() : Ok(BookingResponseDto.FromEntity(booking));
+            return booking == null ? NotFound() : Ok(await bookingService.ToResponseAsync(booking));
         }
         catch (UnauthorizedAccessException) {
             return Forbid();

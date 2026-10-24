@@ -7,4 +7,7 @@ public class PaymentIntentResult {
 
 public interface IPaymentService {
     Task<PaymentIntentResult> CreatePaymentIntentAsync(decimal amount, string currency, string bookingId);
+
+    /// <summary>True when Stripe reports the payment as succeeded.</summary>
+    Task<bool> IsPaymentSucceededAsync(string paymentIntentId);
 }

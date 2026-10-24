@@ -28,17 +28,37 @@ public class CreateBookingDto {
     public required List<BookingTicketDto> Tickets { get; set; }
 }
 
+public class BookingEventDto {
+    public required string Id { get; set; }
+    public required string Title { get; set; }
+    public DateTime StartsAt { get; set; }
+    public required string Location { get; set; }
+    public required string ImageUrl { get; set; }
+}
+
+public class BookingTicketItemDto {
+    public required string TicketId { get; set; }
+    public string Type { get; set; } = string.Empty;
+    public int Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+}
+
 public class BookingResponseDto {
     public required string Id { get; set; }
-    public required List<BookingTicket> Tickets { get; set; }
+    public required string EventId { get; set; }
+    public BookingEventDto? Event { get; set; }
+    public required List<BookingTicketItemDto> Tickets { get; set; }
     public int Quantity { get; set; }
+    public decimal Subtotal { get; set; }
+    public decimal ServiceFee { get; set; }
+    public decimal TotalPrice { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
 
-    public static BookingResponseDto FromEntity(Booking booking) => new() {
-        Id = booking.Id,
-        Tickets = booking.Tickets,
-        Status = booking.Status.ToString(),
-        CreatedAt = booking.CreatedAt
-    };
+    /// <summary>While the booking is pending, the tickets are held until this time.</summary>
+    public DateTime ExpiresAt { get; set; }
+
+    /// <summary>Stripe client secret to pay with. Only set when the booking is created.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ClientSecret { get; set; }
 }

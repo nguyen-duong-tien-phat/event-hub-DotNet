@@ -26,4 +26,9 @@ public class StripePaymentService: IPaymentService {
         };
 
     }
+
+    public async Task<bool> IsPaymentSucceededAsync(string paymentIntentId) {
+        var intent = await new PaymentIntentService().GetAsync(paymentIntentId);
+        return intent.Status == "succeeded";
+    }
 }

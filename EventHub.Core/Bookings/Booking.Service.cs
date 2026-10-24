@@ -13,6 +13,12 @@ public class BookingService (
     IUnitOfWork unitOfWork,
     IPaymentService paymentService)
 {
+    /// <summary>How long a pending booking keeps its tickets before it can expire.</summary>
+    public static readonly TimeSpan HoldDuration = TimeSpan.FromMinutes(15);
+
+    /// <summary>Service fee charged on top of the tickets: 1%.</summary>
+    public const decimal ServiceFeeRate = 0.01m;
+
     public async Task<BookingWithPaymentResult?> CreateAsync(CreateBookingRequest request) {
         List<BookingTicket>  tickets = [];
         foreach (var item in request.Tickets) {
@@ -20,8 +26,15 @@ public class BookingService (
             if (ticket == null) {
                 throw new KeyNotFoundException("Ticket not found");
             }
+            if (ticket.EventId != request.EventId) {
+                throw new ArgumentException("Ticket does not belong to this event.");
+            }
+            if (item.Quantity < 1 || item.Quantity > ticket.MaxPerOrder) {
+                throw new ArgumentException($"You can book between 1 and {ticket.MaxPerOrder} of '{ticket.Type}'.");
+            }
             tickets.Add(new BookingTicket {
                 TicketId = item.TicketId,
+                TicketType = ticket.Type,
                 Quantity = item.Quantity,
                 UnitPrice = ticket.Price,
             });
@@ -29,10 +42,12 @@ public class BookingService (
 
         Booking booking;
         
-        decimal totalPrice = 0;
+        decimal subtotal = 0;
         foreach (var item in tickets) {
-            totalPrice += item.Quantity * item.UnitPrice;
+            subtotal += item.Quantity * item.UnitPrice;
         }
+        var serviceFee = Math.Round(subtotal * ServiceFeeRate, 2, MidpointRounding.AwayFromZero);
+        var totalPrice = subtotal + serviceFee;
         
         await unitOfWork.BeginTransactionAsync();
         
@@ -48,7 +63,9 @@ public class BookingService (
                 EventId = request.EventId,
                 UserId = request.UserId,
                 Tickets = tickets,
-                Status = BookingStatus.Pending,
+                // Free bookings need no payment, so they are confirmed right away.
+                Status = totalPrice == 0 ? BookingStatus.Confirmed : BookingStatus.Pending,
+                ServiceFee = serviceFee,
                 TotalPrice = totalPrice
             };
             
@@ -62,6 +79,10 @@ public class BookingService (
             throw;
         }
         
+        if (totalPrice == 0) {
+            return new BookingWithPaymentResult { Booking = booking, ClientSecret = string.Empty };
+        }
+
         // Payment
         try {
             var paymentIntent = await paymentService.CreatePaymentIntentAsync(totalPrice, "usd", booking.Id);
@@ -82,6 +103,60 @@ public class BookingService (
             await bookingRepository.SaveChangesAsync();
             throw new InvalidOperationException("Failed to initialize payment. Your reservation has been released.", ex);
         }
+    }
+
+    /// <summary>The booking as sent to clients, with its event and ticket names.</summary>
+    public async Task<BookingResponseDto> ToResponseAsync(Booking booking, string? clientSecret = null) {
+        var ev = await eventRepository.GetByIdAsync(booking.EventId);
+
+        return new BookingResponseDto {
+            Id = booking.Id,
+            EventId = booking.EventId,
+            Event = ev == null ? null : new BookingEventDto {
+                Id = ev.Id,
+                Title = ev.Title,
+                StartsAt = ev.StartsAt,
+                Location = ev.Location,
+                ImageUrl = ev.ImageUrl,
+            },
+            Tickets = booking.Tickets.Select(t => new BookingTicketItemDto {
+                TicketId = t.TicketId,
+                Type = t.TicketType,
+                Quantity = t.Quantity,
+                UnitPrice = t.UnitPrice,
+            }).ToList(),
+            Quantity = booking.Tickets.Sum(t => t.Quantity),
+            Subtotal = booking.TotalPrice - booking.ServiceFee,
+            ServiceFee = booking.ServiceFee,
+            TotalPrice = booking.TotalPrice,
+            Status = booking.Status.ToString(),
+            CreatedAt = booking.CreatedAt,
+            ExpiresAt = booking.CreatedAt + HoldDuration,
+            ClientSecret = string.IsNullOrEmpty(clientSecret) ? null : clientSecret,
+        };
+    }
+
+    /// <summary>
+    /// Asks Stripe whether the booking has been paid and confirms it if so. Lets the
+    /// app finish a payment without waiting for the Stripe webhook.
+    /// </summary>
+    public async Task<Booking?> ConfirmPaymentAsync(string bookingId, string requestingUserId) {
+        var booking = await bookingRepository.GetByIdAsync(bookingId);
+        if (booking == null) return null;
+
+        if (booking.UserId != requestingUserId) {
+            throw new UnauthorizedAccessException();
+        }
+
+        if (booking.Status == BookingStatus.Pending
+            && booking.PaymentIntentId != null
+            && await paymentService.IsPaymentSucceededAsync(booking.PaymentIntentId)) {
+            booking.Status = BookingStatus.Confirmed;
+            bookingRepository.Update(booking);
+            await bookingRepository.SaveChangesAsync();
+        }
+
+        return booking;
     }
 
     public Task<List<Booking>> GetByUserIdAsync(string userId) => bookingRepository.GetByUserIdAsync(userId);
