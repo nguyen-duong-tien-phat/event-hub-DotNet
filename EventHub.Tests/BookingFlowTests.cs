@@ -98,6 +98,99 @@ public class BookingFlowTests {
         await Assert.ThrowsAsync<ArgumentException>(() => CreateService().CreateAsync(Request("t1", quantity)));
     }
 
+    private static CreateBookingRequest KeyedRequest(string key) {
+        var request = Request("t1", 1);
+        request.IdempotencyKey = key;
+        return request;
+    }
+
+    private static Booking ExistingBooking(string key, string? paymentIntentId = "pi_old", BookingStatus status = BookingStatus.Pending) => new() {
+        EventId = "event_1", UserId = "user_1", IdempotencyKey = key, PaymentIntentId = paymentIntentId, Status = status,
+    };
+
+    [Fact]
+    public async Task CreateAsync_NewKey_IsStoredOnTheBooking() {
+        GivenTicket("t1", 25m);
+
+        var result = await CreateService().CreateAsync(KeyedRequest("key-1"));
+
+        Assert.False(result!.Replayed);
+        Assert.Equal("key-1", result.Booking.IdempotencyKey);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithoutKey_NeverLooksOneUp() {
+        GivenTicket("t1", 25m);
+
+        await CreateService().CreateAsync(Request("t1", 1));
+
+        _bookingRepo.Verify(r => r.GetByIdempotencyKeyAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateAsync_SeenKey_ReturnsTheOriginalBooking_WithoutHoldingOrChargingAgain() {
+        GivenTicket("t1", 25m);
+        var existing = ExistingBooking("key-1");
+        _bookingRepo.Setup(r => r.GetByIdempotencyKeyAsync("user_1", "key-1")).ReturnsAsync(existing);
+        _payment.Setup(p => p.GetClientSecretAsync("pi_old")).ReturnsAsync("secret_old");
+
+        var result = await CreateService().CreateAsync(KeyedRequest("key-1"));
+
+        Assert.True(result!.Replayed);
+        Assert.Same(existing, result.Booking);
+        Assert.Equal("secret_old", result.ClientSecret);
+        _ticketRepo.Verify(r => r.TryReserveAsync(It.IsAny<List<BookingTicket>>()), Times.Never);
+        _bookingRepo.Verify(r => r.AddAsync(It.IsAny<Booking>()), Times.Never);
+        _payment.Verify(p => p.CreatePaymentIntentAsync(It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateAsync_SeenKey_OnAConfirmedBooking_HasNoClientSecret() {
+        _bookingRepo.Setup(r => r.GetByIdempotencyKeyAsync("user_1", "key-1"))
+            .ReturnsAsync(ExistingBooking("key-1", status: BookingStatus.Confirmed));
+
+        var result = await CreateService().CreateAsync(KeyedRequest("key-1"));
+
+        Assert.Equal(string.Empty, result!.ClientSecret);
+        _payment.Verify(p => p.GetClientSecretAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateAsync_SeenKey_WhilePaymentIsStillBeingCreated_AsksToRetry() {
+        _bookingRepo.Setup(r => r.GetByIdempotencyKeyAsync("user_1", "key-1"))
+            .ReturnsAsync(ExistingBooking("key-1", paymentIntentId: null));
+
+        await Assert.ThrowsAsync<BookingInProgressException>(() => CreateService().CreateAsync(KeyedRequest("key-1")));
+    }
+
+    [Fact]
+    public async Task CreateAsync_LosingTheRace_ReturnsTheWinnersBooking() {
+        GivenTicket("t1", 25m);
+        var winner = ExistingBooking("key-1");
+        // Not there when we check first, there once our own insert fails on the unique index.
+        _bookingRepo.SetupSequence(r => r.GetByIdempotencyKeyAsync("user_1", "key-1"))
+            .ReturnsAsync((Booking?)null)
+            .ReturnsAsync(winner);
+        _bookingRepo.Setup(r => r.SaveChangesAsync()).ThrowsAsync(new InvalidOperationException("duplicate key"));
+        _payment.Setup(p => p.GetClientSecretAsync("pi_old")).ReturnsAsync("secret_old");
+
+        var result = await CreateService().CreateAsync(KeyedRequest("key-1"));
+
+        Assert.True(result!.Replayed);
+        Assert.Same(winner, result.Booking);
+        _unitOfWork.Verify(u => u.RollbackAsync(), Times.Once);
+        _bookingRepo.Verify(r => r.DetachPending(), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateAsync_FailingForAnotherReason_StillThrows() {
+        GivenTicket("t1", 25m);
+        _bookingRepo.Setup(r => r.GetByIdempotencyKeyAsync("user_1", "key-1")).ReturnsAsync((Booking?)null);
+        _bookingRepo.Setup(r => r.SaveChangesAsync()).ThrowsAsync(new InvalidOperationException("db down"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService().CreateAsync(KeyedRequest("key-1")));
+    }
+
     [Fact]
     public async Task ToResponseAsync_ShowsSubtotalFeeTotalAndHoldTime() {
         _eventRepo.Setup(r => r.GetByIdAsync("event_1")).ReturnsAsync(new Event {

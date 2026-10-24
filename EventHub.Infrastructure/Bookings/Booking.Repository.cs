@@ -38,6 +38,15 @@ public class BookingRepository(AppDbContext db) : Repository<Booking>(db), IBook
         return (items, totalCount);
     }
 
+    public void DetachPending() {
+        foreach (var entry in db.ChangeTracker.Entries().ToList()) {
+            entry.State = EntityState.Detached;
+        }
+    }
+
+    public async Task<Booking?> GetByIdempotencyKeyAsync(string userId, string key) =>
+        await DbSet.FirstOrDefaultAsync(b => b.UserId == userId && b.IdempotencyKey == key);
+
     public async Task<Booking?> GetByPaymentIntentId(string paymentIntentId) =>
         await DbSet.FirstOrDefaultAsync(b => b.PaymentIntentId == paymentIntentId);
 

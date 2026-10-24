@@ -16,17 +16,24 @@ public class BookingsController(BookingService bookingService) : ControllerBase 
     [HttpPost]
     public async Task<IActionResult> Create(CreateBookingDto dto) {
         var userId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
+        var idempotencyKey = Request.Headers["Idempotency-Key"].FirstOrDefault();
+        if (idempotencyKey is { Length: > 100 }) {
+            return BadRequest(new { message = "Idempotency-Key is too long" });
+        }
 
         try {
             var result = await bookingService.CreateAsync(new CreateBookingRequest {
                 UserId = userId,
                 EventId = dto.EventId,
-                Tickets = dto.Tickets
+                Tickets = dto.Tickets,
+                IdempotencyKey = string.IsNullOrWhiteSpace(idempotencyKey) ? null : idempotencyKey
             });
 
             if (result == null) return Conflict(new { message = "Not enough tickets remaining" });
 
             var response = await bookingService.ToResponseAsync(result.Booking, result.ClientSecret);
+            // A replay is not a new resource, so 200 rather than 201.
+            if (result.Replayed) return Ok(response);
             return CreatedAtAction(nameof(GetById), new { id = result.Booking.Id }, response);
         }
         catch (KeyNotFoundException e) {
@@ -34,6 +41,9 @@ public class BookingsController(BookingService bookingService) : ControllerBase 
         }
         catch (ArgumentException e) {
             return BadRequest(new { message = e.Message });
+        }
+        catch (BookingInProgressException e) {
+            return Conflict(new { message = e.Message });
         }
     }
     

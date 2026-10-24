@@ -7,6 +7,9 @@ public interface IBookingRepository : IRepository<Booking> {
     Task<(List<Booking> Items, int TotalCount)> GetPagedByUserIdAsync(string userId, int page, int pageSize);
     Task<List<Booking>> GetByEventIdAsync(string eventId);
     Task<(List<Booking> Items, int TotalCount)> GetPagedByEventIdAsync(string eventId, int page, int pageSize);
+    /// <summary>Forgets entities from a failed save so the context can be used for a fresh query.</summary>
+    void DetachPending();
+    Task<Booking?> GetByIdempotencyKeyAsync(string userId, string key);
     Task<Booking?> GetByPaymentIntentId(string paymentIntentId);
     Task<List<Booking>> GetExpiredPendingBookingsAsync(DateTime olderThan);
 }

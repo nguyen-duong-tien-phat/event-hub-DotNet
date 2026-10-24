@@ -6,11 +6,17 @@ public class CreateBookingRequest {
     public required string EventId { get; set; }
     public required string UserId { get; set; }
     public required List<BookingTicketDto> Tickets { get; set; }
+
+    /// <summary>From the Idempotency-Key header. Null means the client did not ask for retry safety.</summary>
+    public string? IdempotencyKey { get; set; }
 }
 
 public class BookingWithPaymentResult {
     public Booking Booking { get; set; } = null!;
     public string ClientSecret { get; set; } = string.Empty;
+
+    /// <summary>True when the key was seen before and this is the original booking, not a new one.</summary>
+    public bool Replayed { get; set; }
 }
 
 // DTOs

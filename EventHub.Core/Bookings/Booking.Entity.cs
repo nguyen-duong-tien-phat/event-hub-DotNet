@@ -23,6 +23,12 @@ public class Booking() : BaseEntity("booking")
     public decimal ServiceFee { get; set; }
     public BookingStatus Status { get; set; } = BookingStatus.Pending;
     public string? PaymentIntentId { get; set; }
+
+    /// <summary>
+    /// Client-generated key for the "intent to book". The same key from the same user
+    /// always maps to this one booking, so a retry never creates a second one.
+    /// </summary>
+    public string? IdempotencyKey { get; set; }
 }
 
 public class BookingTicket {

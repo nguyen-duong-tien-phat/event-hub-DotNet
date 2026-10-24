@@ -36,6 +36,9 @@ namespace EventHub.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("IdempotencyKey")
+                        .HasColumnType("text");
+
                     b.Property<string>("PaymentIntentId")
                         .HasColumnType("text");
 
@@ -62,7 +65,9 @@ namespace EventHub.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId", "IdempotencyKey")
+                        .IsUnique()
+                        .HasFilter("\"IdempotencyKey\" IS NOT NULL");
 
                     b.ToTable("Bookings");
                 });

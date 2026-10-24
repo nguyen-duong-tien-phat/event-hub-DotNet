@@ -6,6 +6,9 @@ using EventHub.Core.Users;
 
 namespace EventHub.Core.Bookings;
 
+/// <summary>The same request is still being processed; the client should retry shortly.</summary>
+public class BookingInProgressException() : Exception("This booking is still being created. Please retry in a moment.");
+
 public class BookingService (
     IBookingRepository bookingRepository, 
     ITicketRepository ticketRepository,
@@ -20,6 +23,12 @@ public class BookingService (
     public const decimal ServiceFeeRate = 0.01m;
 
     public async Task<BookingWithPaymentResult?> CreateAsync(CreateBookingRequest request) {
+        // Same user + same key = same intent: hand back the original booking instead of holding tickets again.
+        if (request.IdempotencyKey != null) {
+            var replay = await TryReplayAsync(request.UserId, request.IdempotencyKey);
+            if (replay != null) return replay;
+        }
+
         List<BookingTicket>  tickets = [];
         foreach (var item in request.Tickets) {
             var ticket = await ticketRepository.GetByIdAsync(item.TicketId);
@@ -62,6 +71,7 @@ public class BookingService (
             booking = new Booking {
                 EventId = request.EventId,
                 UserId = request.UserId,
+                IdempotencyKey = request.IdempotencyKey,
                 Tickets = tickets,
                 // Free bookings need no payment, so they are confirmed right away.
                 Status = totalPrice == 0 ? BookingStatus.Confirmed : BookingStatus.Pending,
@@ -76,6 +86,15 @@ public class BookingService (
         }
         catch {
             await unitOfWork.RollbackAsync();
+
+            // Two requests with the same key can both pass the check at the top. The unique index
+            // lets only one insert win; the loser lands here (its ticket hold is rolled back).
+            // If the key now exists, the loser simply returns the winner's booking.
+            if (request.IdempotencyKey != null) {
+                bookingRepository.DetachPending();
+                var replay = await TryReplayAsync(request.UserId, request.IdempotencyKey);
+                if (replay != null) return replay;
+            }
             throw;
         }
         
@@ -103,6 +122,22 @@ public class BookingService (
             await bookingRepository.SaveChangesAsync();
             throw new InvalidOperationException("Failed to initialize payment. Your reservation has been released.", ex);
         }
+    }
+
+    /// <summary>The booking already made for this user + key, or null if the key is new.</summary>
+    private async Task<BookingWithPaymentResult?> TryReplayAsync(string userId, string key) {
+        var existing = await bookingRepository.GetByIdempotencyKeyAsync(userId, key);
+        if (existing == null) return null;
+
+        var secret = string.Empty;
+        if (existing.Status == BookingStatus.Pending) {
+            // The winning request has saved the booking but not created the payment yet.
+            if (existing.PaymentIntentId == null) {
+                throw new BookingInProgressException();
+            }
+            secret = await paymentService.GetClientSecretAsync(existing.PaymentIntentId);
+        }
+        return new BookingWithPaymentResult { Booking = existing, ClientSecret = secret, Replayed = true };
     }
 
     /// <summary>The booking as sent to clients, with its event and ticket names.</summary>

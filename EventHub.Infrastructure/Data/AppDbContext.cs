@@ -52,6 +52,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options): DbContext(opt
         modelBuilder.Entity<Booking>()
             .Property(x => x.Tickets)
             .HasColumnType("jsonb");
+
+        // One booking per (user, key). Old bookings have no key, so only rows with one are constrained.
+        modelBuilder.Entity<Booking>()
+            .HasIndex(b => new { b.UserId, b.IdempotencyKey })
+            .IsUnique()
+            .HasFilter("\"IdempotencyKey\" IS NOT NULL");
         
         modelBuilder.Entity<SavedEvent>().Property(s => s.Id).ValueGeneratedNever();
         modelBuilder.Entity<SavedEvent>()
