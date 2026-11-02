@@ -36,4 +36,19 @@ public class StripePaymentService: IPaymentService {
         var intent = await new PaymentIntentService().GetAsync(paymentIntentId);
         return intent.Status == "succeeded";
     }
+
+    public async Task<bool> CancelPaymentIntentAsync(string paymentIntentId) {
+        try {
+            await new PaymentIntentService().CancelAsync(paymentIntentId);
+            return true;
+        } catch (StripeException e) {
+            return false;
+        }
+    }
+
+    public async Task RefundAsync(string paymentIntentId, string bookingId) {
+        await new RefundService().CreateAsync(
+            new RefundCreateOptions{PaymentIntent = paymentIntentId},
+            new RequestOptions {IdempotencyKey = $"refund-{bookingId}"});
+    }
 }

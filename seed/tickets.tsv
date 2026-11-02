@@ -1,0 +1,20 @@
+ticket_seed0000001a	event_seed000000001	General	35.00	800	140	{"General admission","Access to all stages"}	6	2026-10-18 09:23:52+00	2026-10-18 09:23:52+00
+ticket_seed0000001b	event_seed000000001	VIP	90.00	100	12	{"Fast-track entry","VIP lounge","Free drink"}	4	2026-10-18 09:23:52+00	2026-10-18 09:23:52+00
+ticket_seed0000002a	event_seed000000002	Day Pass	8.00	3000	1800	{"Entry for one day","Tasting credits x3"}	10	2026-10-18 09:23:52+00	2026-10-18 09:23:52+00
+ticket_seed0000002b	event_seed000000002	Weekend Pass	14.00	1000	700	{"Entry both days","Tasting credits x8","Cooking demo seat"}	6	2026-10-18 09:23:52+00	2026-10-18 09:23:52+00
+ticket_seed0000003a	event_seed000000003	General	25.00	1200	400	{"General admission"}	8	2026-10-18 09:23:52+00	2026-10-18 09:23:52+00
+ticket_seed0000003b	event_seed000000003	Sunset Deck	60.00	150	20	{"Front deck access","Welcome cocktail"}	4	2026-10-18 09:23:52+00	2026-10-18 09:23:52+00
+ticket_seed0000004a	event_seed000000004	Standard	49.00	600	320	{"All talks","Lunch and coffee"}	5	2026-10-18 09:23:52+00	2026-10-18 09:23:52+00
+ticket_seed0000004b	event_seed000000004	Workshop Pass	89.00	120	45	{"All talks","Two workshops","Speaker dinner"}	3	2026-10-18 09:23:52+00	2026-10-18 09:23:52+00
+ticket_seed0000005a	event_seed000000005	Entry	3.00	2000	1500	{"Night market entry"}	10	2026-10-18 09:23:52+00	2026-10-18 09:23:52+00
+ticket_seed0000005b	event_seed000000005	Entry + Snack Pack	7.00	500	210	{"Night market entry","5 snack vouchers"}	6	2026-10-18 09:23:52+00	2026-10-18 09:23:52+00
+ticket_seed0000006a	event_seed000000006	10K	20.00	2500	1100	{"Timing chip","Finisher medal"}	4	2026-10-18 09:23:52+00	2026-10-18 09:23:52+00
+ticket_seed0000006b	event_seed000000006	Half Marathon	35.00	1500	380	{"Timing chip","Finisher medal","Race shirt"}	2	2026-10-18 09:23:52+00	2026-10-18 09:23:52+00
+ticket_seed0000007a	event_seed000000007	Day Ticket	6.00	900	600	{"One day entry","Guided tour"}	8	2026-10-18 09:23:52+00	2026-10-18 09:23:52+00
+ticket_seed0000007b	event_seed000000007	Weekend Ticket	14.00	300	120	{"All three days","Artist talks"}	4	2026-10-18 09:23:52+00	2026-10-18 09:23:52+00
+ticket_seed0000008a	event_seed000000008	General	12.00	150	30	{"Open seating","One drink"}	4	2026-10-18 09:23:52+00	2026-10-18 09:23:52+00
+ticket_seed0000008b	event_seed000000008	Front Row	22.00	30	4	{"Front row seat","One drink","Meet the comedians"}	2	2026-10-18 09:23:52+00	2026-10-18 09:23:52+00
+ticket_seed0000009a	event_seed000000009	Adult	18.00	200	90	{"Brunch","Welcome drink"}	6	2026-10-18 09:23:52+00	2026-10-18 09:23:52+00
+ticket_seed0000009b	event_seed000000009	Child	9.00	80	55	{"Kids brunch","Games"}	6	2026-10-18 09:23:52+00	2026-10-18 09:23:52+00
+ticket_seed0000010a	event_seed000000010	Day Pass	28.00	2000	1300	{"One day entry"}	8	2026-10-18 09:23:52+00	2026-10-18 09:23:52+00
+ticket_seed0000010b	event_seed000000010	Weekend + Camping	85.00	400	160	{"Both days","Camping spot","Lantern parade"}	4	2026-10-18 09:23:52+00	2026-10-18 09:23:52+00

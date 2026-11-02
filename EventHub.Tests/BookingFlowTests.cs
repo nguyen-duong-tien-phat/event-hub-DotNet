@@ -191,6 +191,145 @@ public class BookingFlowTests {
         await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService().CreateAsync(KeyedRequest("key-1")));
     }
 
+    private Booking BookingWithIntent(BookingStatus status, string? paymentIntentId = "pi_1") {
+        var booking = new Booking {
+            EventId = "event_1", UserId = "user_1", Status = status, PaymentIntentId = paymentIntentId,
+            Tickets = [new BookingTicket { TicketId = "t1", Quantity = 1, UnitPrice = 25m }],
+        };
+        _bookingRepo.Setup(r => r.GetByIdAsync(booking.Id)).ReturnsAsync(booking);
+        if (paymentIntentId != null) {
+            _bookingRepo.Setup(r => r.GetByPaymentIntentId(paymentIntentId)).ReturnsAsync(booking);
+        }
+        return booking;
+    }
+
+    private void VerifyRefunded(Booking booking, Func<Times> times) =>
+        _payment.Verify(p => p.RefundAsync("pi_1", booking.Id), times);
+
+    [Fact]
+    public async Task CancelAsync_CancelsThePaymentIntent_AndDoesNotRefund() {
+        var booking = BookingWithIntent(BookingStatus.Pending);
+        _payment.Setup(p => p.CancelPaymentIntentAsync("pi_1")).ReturnsAsync(true);
+
+        var result = await CreateService().CancelAsync(booking.Id, "user_1");
+
+        Assert.Equal(BookingStatus.Cancelled, result!.Status);
+        _payment.Verify(p => p.CancelPaymentIntentAsync("pi_1"), Times.Once);
+        VerifyRefunded(booking, Times.Never);
+    }
+
+    [Fact]
+    public async Task CancelAsync_WhenTheIntentWasAlreadyPaid_RefundsOnce() {
+        var booking = BookingWithIntent(BookingStatus.Pending);
+        _payment.Setup(p => p.CancelPaymentIntentAsync("pi_1")).ReturnsAsync(false);
+        _payment.Setup(p => p.IsPaymentSucceededAsync("pi_1")).ReturnsAsync(true);
+
+        await CreateService().CancelAsync(booking.Id, "user_1");
+
+        VerifyRefunded(booking, Times.Once);
+    }
+
+    [Fact]
+    public async Task CancelAsync_WhenTheIntentCannotBeCancelledButWasNotPaid_DoesNotRefund() {
+        var booking = BookingWithIntent(BookingStatus.Pending);
+        _payment.Setup(p => p.CancelPaymentIntentAsync("pi_1")).ReturnsAsync(false);
+        _payment.Setup(p => p.IsPaymentSucceededAsync("pi_1")).ReturnsAsync(false);
+
+        await CreateService().CancelAsync(booking.Id, "user_1");
+
+        VerifyRefunded(booking, Times.Never);
+    }
+
+    [Fact]
+    public async Task CancelAsync_FreeBooking_NeverTouchesStripe() {
+        var booking = BookingWithIntent(BookingStatus.Confirmed, paymentIntentId: null);
+
+        await CreateService().CancelAsync(booking.Id, "user_1");
+
+        _payment.Verify(p => p.CancelPaymentIntentAsync(It.IsAny<string>()), Times.Never);
+        _payment.Verify(p => p.RefundAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ConfirmPaymentAsync_OnACancelledBookingThatWasPaid_Refunds() {
+        var booking = BookingWithIntent(BookingStatus.Cancelled);
+        _payment.Setup(p => p.IsPaymentSucceededAsync("pi_1")).ReturnsAsync(true);
+
+        var result = await CreateService().ConfirmPaymentAsync(booking.Id, "user_1");
+
+        Assert.Equal(BookingStatus.Cancelled, result!.Status); // the tickets are gone: it stays cancelled
+        VerifyRefunded(booking, Times.Once);
+    }
+
+    [Fact]
+    public async Task ConfirmPaymentAsync_OnACancelledBookingThatWasNotPaid_DoesNotRefund() {
+        var booking = BookingWithIntent(BookingStatus.Cancelled);
+        _payment.Setup(p => p.IsPaymentSucceededAsync("pi_1")).ReturnsAsync(false);
+
+        await CreateService().ConfirmPaymentAsync(booking.Id, "user_1");
+
+        VerifyRefunded(booking, Times.Never);
+    }
+
+    [Fact]
+    public async Task ConfirmPaymentAsync_OnAPaidPendingBooking_ConfirmsWithoutRefund() {
+        var booking = BookingWithIntent(BookingStatus.Pending);
+        _payment.Setup(p => p.IsPaymentSucceededAsync("pi_1")).ReturnsAsync(true);
+
+        var result = await CreateService().ConfirmPaymentAsync(booking.Id, "user_1");
+
+        Assert.Equal(BookingStatus.Confirmed, result!.Status);
+        VerifyRefunded(booking, Times.Never);
+    }
+
+    [Fact]
+    public async Task HandlePaymentSucceeded_OnACancelledBookingThatWasPaid_Refunds() {
+        var booking = BookingWithIntent(BookingStatus.Cancelled);
+        _payment.Setup(p => p.IsPaymentSucceededAsync("pi_1")).ReturnsAsync(true);
+
+        await CreateService().HandlePaymentSucceeded("pi_1");
+
+        Assert.Equal(BookingStatus.Cancelled, booking.Status);
+        VerifyRefunded(booking, Times.Once);
+    }
+
+    [Fact]
+    public async Task HandlePaymentSucceeded_OnAPendingBooking_ConfirmsWithoutRefund() {
+        var booking = BookingWithIntent(BookingStatus.Pending);
+
+        await CreateService().HandlePaymentSucceeded("pi_1");
+
+        Assert.Equal(BookingStatus.Confirmed, booking.Status);
+        VerifyRefunded(booking, Times.Never);
+    }
+
+    [Fact]
+    public async Task HandlePaymentSucceeded_OnAnAlreadyConfirmedBooking_DoesNothing() {
+        var booking = BookingWithIntent(BookingStatus.Confirmed);
+
+        await CreateService().HandlePaymentSucceeded("pi_1");
+
+        VerifyRefunded(booking, Times.Never);
+        _bookingRepo.Verify(r => r.SaveChangesAsync(), Times.Never);
+    }
+
+    [Fact]
+    public async Task ExpireAbandonedBookingAsync_StopsThePaymentOfEveryExpiredBooking() {
+        var first = BookingWithIntent(BookingStatus.Pending, "pi_a");
+        var second = BookingWithIntent(BookingStatus.Pending, "pi_b");
+        _bookingRepo
+            .Setup(r => r.GetExpiredPendingBookingsAsync(It.IsAny<DateTime>()))
+            .ReturnsAsync([first, second]);
+        _payment.Setup(p => p.CancelPaymentIntentAsync(It.IsAny<string>())).ReturnsAsync(true);
+
+        await CreateService().ExpireAbandonedBookingAsync(BookingService.HoldDuration);
+
+        Assert.Equal(BookingStatus.Cancelled, first.Status);
+        Assert.Equal(BookingStatus.Cancelled, second.Status);
+        _payment.Verify(p => p.CancelPaymentIntentAsync("pi_a"), Times.Once);
+        _payment.Verify(p => p.CancelPaymentIntentAsync("pi_b"), Times.Once);
+    }
+
     [Fact]
     public async Task ToResponseAsync_ShowsSubtotalFeeTotalAndHoldTime() {
         _eventRepo.Setup(r => r.GetByIdAsync("event_1")).ReturnsAsync(new Event {

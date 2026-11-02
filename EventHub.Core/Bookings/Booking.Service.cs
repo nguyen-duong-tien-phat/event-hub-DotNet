@@ -210,6 +210,10 @@ public class BookingService (
             await bookingRepository.SaveChangesAsync();
         }
 
+        if (booking.Status == BookingStatus.Cancelled) {
+            await RefundIfPaidAsync(booking);
+        }
+
         return booking;
     }
 
@@ -277,12 +281,14 @@ public class BookingService (
             await ticketRepository.ReleaseAsync(booking.Tickets);
 
             await unitOfWork.CommitAsync();
-            return booking;
         }
         catch {
             await unitOfWork.RollbackAsync();
             throw;
         }
+        // The booking is canceled for good; stopping the payment comes after.
+        await StopPaymentAsync(booking);
+        return booking;
     }
     
     public async Task ExpireAbandonedBookingAsync(TimeSpan expiryThreshold) {
@@ -301,14 +307,21 @@ public class BookingService (
             catch {
                 await unitOfWork.RollbackAsync();
             }
+            await StopPaymentAsync(booking);
         }
     }
     
     public async Task HandlePaymentSucceeded(string paymentIntentId) {
         var booking = await bookingRepository.GetByPaymentIntentId(paymentIntentId);
-        if (booking == null || booking.Status != BookingStatus.Pending) {
+        
+        if (booking == null) return;
+        
+        if (booking.Status == BookingStatus.Cancelled) {
+            await RefundIfPaidAsync(booking);
             return;
         }
+        
+        if (booking.Status != BookingStatus.Pending) return;
 
         booking.Status = BookingStatus.Confirmed;
         bookingRepository.Update(booking);
@@ -325,5 +338,25 @@ public class BookingService (
         bookingRepository.Update(booking);
         await ticketRepository.ReleaseAsync(booking.Tickets);
         await bookingRepository.SaveChangesAsync();
+    }
+    
+    /// <summary>
+    /// Called once a booking is cancelled: stops the payment, and if the customer
+    /// had already paid (they pressed Pay just before we cancelled), refunds them.
+    /// </summary>
+    private async Task StopPaymentAsync(Booking booking) {
+        if (booking.PaymentIntentId == null) return; // free booking: nothing was charged
+
+        var cancelled = await paymentService.CancelPaymentIntentAsync(booking.PaymentIntentId);
+        if (!cancelled) {
+            await RefundIfPaidAsync(booking);
+        }
+    }
+
+    private async Task RefundIfPaidAsync(Booking booking) {
+        if (booking.PaymentIntentId == null) return;
+        if (await paymentService.IsPaymentSucceededAsync(booking.PaymentIntentId)) {
+            await paymentService.RefundAsync(booking.PaymentIntentId, booking.Id);
+        }
     }
 }
