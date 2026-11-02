@@ -331,6 +331,55 @@ public class BookingFlowTests {
     }
 
     [Fact]
+    public async Task ExpireAbandonedBookingAsync_WhenCancellingFails_LeavesItsPaymentAlone_AndCarriesOn() {
+        var broken = BookingWithIntent(BookingStatus.Pending, "pi_a");
+        var healthy = BookingWithIntent(BookingStatus.Pending, "pi_b");
+        _bookingRepo
+            .Setup(r => r.GetExpiredPendingBookingsAsync(It.IsAny<DateTime>()))
+            .ReturnsAsync([broken, healthy]);
+        _ticketRepo.Setup(r => r.ReleaseAsync(broken.Tickets)).ThrowsAsync(new InvalidOperationException("db down"));
+        _payment.Setup(p => p.CancelPaymentIntentAsync(It.IsAny<string>())).ReturnsAsync(true);
+
+        await CreateService().ExpireAbandonedBookingAsync(BookingService.HoldDuration);
+
+        // Its booking is still held, so a customer paying right now must not be refused.
+        _payment.Verify(p => p.CancelPaymentIntentAsync("pi_a"), Times.Never);
+        _unitOfWork.Verify(u => u.RollbackAsync(), Times.Once);
+        // The next booking is not skipped.
+        _payment.Verify(p => p.CancelPaymentIntentAsync("pi_b"), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExpireAbandonedBookingAsync_WhenStripeFails_StillCancelsAndCarriesOn() {
+        var first = BookingWithIntent(BookingStatus.Pending, "pi_a");
+        var second = BookingWithIntent(BookingStatus.Pending, "pi_b");
+        _bookingRepo
+            .Setup(r => r.GetExpiredPendingBookingsAsync(It.IsAny<DateTime>()))
+            .ReturnsAsync([first, second]);
+        _payment.Setup(p => p.CancelPaymentIntentAsync("pi_a")).ThrowsAsync(new InvalidOperationException("stripe down"));
+        _payment.Setup(p => p.CancelPaymentIntentAsync("pi_b")).ReturnsAsync(true);
+
+        await CreateService().ExpireAbandonedBookingAsync(BookingService.HoldDuration);
+
+        Assert.Equal(BookingStatus.Cancelled, first.Status);
+        Assert.Equal(BookingStatus.Cancelled, second.Status);
+        _payment.Verify(p => p.CancelPaymentIntentAsync("pi_b"), Times.Once);
+        _unitOfWork.Verify(u => u.RollbackAsync(), Times.Never);
+    }
+
+    [Fact]
+    public async Task CancelAsync_WhenStripeFails_DoesNotRollBackTheCommittedCancellation() {
+        var booking = BookingWithIntent(BookingStatus.Pending);
+        _payment.Setup(p => p.CancelPaymentIntentAsync("pi_1")).ThrowsAsync(new InvalidOperationException("stripe down"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService().CancelAsync(booking.Id, "user_1"));
+
+        Assert.Equal(BookingStatus.Cancelled, booking.Status);
+        _unitOfWork.Verify(u => u.CommitAsync(), Times.Once);
+        _unitOfWork.Verify(u => u.RollbackAsync(), Times.Never);
+    }
+
+    [Fact]
     public async Task ToResponseAsync_ShowsSubtotalFeeTotalAndHoldTime() {
         _eventRepo.Setup(r => r.GetByIdAsync("event_1")).ReturnsAsync(new Event {
             Id = "event_1", Title = "Neon Nights", Description = "d", Location = "Hà Nội", OrganizerId = "o",

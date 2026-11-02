@@ -306,8 +306,13 @@ public class BookingService (
             }
             catch {
                 await unitOfWork.RollbackAsync();
+                continue;
             }
-            await StopPaymentAsync(booking);
+            try {
+                await StopPaymentAsync(booking);
+            } catch {
+                // Canceled already; the next confirm or webhook refunds if it was paid.
+            }
         }
     }
     
