@@ -1,6 +1,7 @@
 using System.Text;
 using DotNetEnv;
 using EventHub.BackgroundJobs;
+using EventHub.Core.Auth;
 using EventHub.Core.Bookings;
 using EventHub.Core.Common;
 using EventHub.Core.Events;
@@ -8,6 +9,7 @@ using EventHub.Core.Payments;
 using EventHub.Core.SavedEvents;
 using EventHub.Core.Tickets;
 using EventHub.Core.Users;
+using EventHub.Infrastructure.Auth;
 using EventHub.Infrastructure.Bookings;
 using EventHub.Infrastructure.Caching;
 using EventHub.Infrastructure.Common;
@@ -64,6 +66,14 @@ if (string.IsNullOrEmpty(jwtKey))
     throw new InvalidOperationException("JWT_KEY is not configured.");
 
 builder.Services.AddScoped(_ => new TokenService(jwtKey, jwtIssuer, jwtAudience, jwtExpiry));
+
+var refreshTokenDays = int.Parse(builder.Configuration["Jwt:RefreshTokenDays"] ?? "30");
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+builder.Services.AddScoped(sp => new RefreshTokenService(
+    sp.GetRequiredService<IRefreshTokenRepository>(),
+    sp.GetRequiredService<IUserRepository>(),
+    sp.GetRequiredService<TokenService>(),
+    TimeSpan.FromDays(refreshTokenDays)));
 
 JsonWebTokenHandler.DefaultInboundClaimTypeMap.Clear();
 

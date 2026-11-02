@@ -10,7 +10,10 @@ namespace EventHub.Auth;
 
 [ApiController]
 [Route("auth")]
-public class AuthController(UserService userService, TokenService tokenService, IRateLimiter rateLimiter) : ControllerBase {
+public class AuthController(
+    UserService userService,
+    RefreshTokenService refreshTokenService,
+    IRateLimiter rateLimiter) : ControllerBase {
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginDto dto) {
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
@@ -26,15 +29,40 @@ public class AuthController(UserService userService, TokenService tokenService, 
         var user = await userService.VerifyPasswordAsync(dto.Email, dto.Password);
         if (user == null) return Unauthorized(new { message = "Invalid email or password" });
 
-        var token = tokenService.GenerateToken(user);
-        return Ok(new AuthResponseDto {
-            Id = user.Id,
-            Token = token,
-            Email = user.Email,
-            FullName = user.FullName,
-            Role = user.Role.ToString()
-        });
+        return Ok(ToResponse(await refreshTokenService.IssueAsync(user)));
     }
+
+    /// <summary>Trades a refresh token for a new access token and a new refresh token.</summary>
+    [HttpPost("refresh")]
+    public async Task<IActionResult> Refresh(RefreshRequestDto dto) {
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var allowed = await rateLimiter.IsAllowedAsync(
+            $"rateLimit:refresh:{ipAddress}", maxAttempts: 30, window: TimeSpan.FromMinutes(1));
+        if (!allowed) {
+            return StatusCode(429, new { message = "Too many requests. Try again later." });
+        }
+
+        var tokens = await refreshTokenService.RefreshAsync(dto.RefreshToken);
+        if (tokens == null) return Unauthorized(new { message = "Session expired. Please log in again." });
+
+        return Ok(ToResponse(tokens));
+    }
+
+    /// <summary>Ends this session for good. Always succeeds, so logging out never fails.</summary>
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout(RefreshRequestDto dto) {
+        await refreshTokenService.RevokeAsync(dto.RefreshToken);
+        return NoContent();
+    }
+
+    private static AuthResponseDto ToResponse(AuthTokens tokens) => new() {
+        Id = tokens.User.Id,
+        Token = tokens.AccessToken,
+        RefreshToken = tokens.RefreshToken,
+        Email = tokens.User.Email,
+        FullName = tokens.User.FullName,
+        Role = tokens.User.Role.ToString()
+    };
 
     [HttpPost("register")]
     public async Task<IActionResult> Register(RegisterDto dto) {

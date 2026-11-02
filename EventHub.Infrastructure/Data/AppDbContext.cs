@@ -1,3 +1,4 @@
+using EventHub.Core.Auth;
 using EventHub.Core.Bookings;
 using EventHub.Core.Common;
 using EventHub.Core.Events;
@@ -14,6 +15,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options): DbContext(opt
     public DbSet<Ticket> Tickets => Set<Ticket>();
     public DbSet<Booking> Bookings => Set<Booking>();
     public DbSet<SavedEvent> SavedEvents => Set<SavedEvent>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) {
         var entries = ChangeTracker.Entries<BaseEntity>()
@@ -59,6 +61,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options): DbContext(opt
             .IsUnique()
             .HasFilter("\"IdempotencyKey\" IS NOT NULL");
         
+        modelBuilder.Entity<RefreshToken>().Property(t => t.Id).ValueGeneratedNever();
+        modelBuilder.Entity<RefreshToken>().HasIndex(t => t.TokenHash).IsUnique();
+        modelBuilder.Entity<RefreshToken>().HasIndex(t => t.UserId);
+
         modelBuilder.Entity<SavedEvent>().Property(s => s.Id).ValueGeneratedNever();
         modelBuilder.Entity<SavedEvent>()
             .HasIndex(s => new { s.UserId, s.EventId })

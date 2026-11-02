@@ -19,9 +19,11 @@ public class AuthControllerTest {
         var userRepo =  new Mock<IUserRepository>();
         var passwordHasher = new Mock<IPasswordHasher<User>>();
         var userService = new UserService(userRepo.Object, passwordHasher.Object);
-        var tokenService = new TokenService("dev-secret-key-at-least-32-characters-long", "EventHub", "EventHubUsers", 60);
+        var tokenService = new TokenService("dev-secret-key-at-least-32-characters-long", "EventHub", "EventHubUsers", 15);
+        var refreshTokens = new RefreshTokenService(
+            new Mock<IRefreshTokenRepository>().Object, userRepo.Object, tokenService, TimeSpan.FromDays(30));
         
-        var authController = new AuthController(userService, tokenService, rateLimiter.Object) {
+        var authController = new AuthController(userService, refreshTokens, rateLimiter.Object) {
             ControllerContext = new ControllerContext {
                 HttpContext = new DefaultHttpContext()
             }
