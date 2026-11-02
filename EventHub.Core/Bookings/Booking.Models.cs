@@ -64,6 +64,9 @@ public class BookingResponseDto {
     /// <summary>While the booking is pending, the tickets are held until this time.</summary>
     public DateTime ExpiresAt { get; set; }
 
+    /// <summary>Signed QR codes, one per ticket, numbered from 1. Empty until the booking is confirmed.</summary>
+    public List<string> TicketCodes { get; set; } = [];
+
     /// <summary>Stripe client secret to pay with. Only set when the booking is created.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? ClientSecret { get; set; }

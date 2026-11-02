@@ -33,6 +33,7 @@ services:
       ConnectionStrings__DefaultConnection: ${DB_CONNECTION}
       ConnectionStrings__Redis: "redis:6379"
       Jwt__Key: ${Jwt__Key}
+      Tickets__Secret: ${Tickets__Secret}
       Jwt__Issuer: "EventHub"
       Jwt__Audience: "EventHubUsers"
       Jwt__ExpiryMinutes: "15"

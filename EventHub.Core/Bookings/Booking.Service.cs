@@ -14,7 +14,8 @@ public class BookingService (
     ITicketRepository ticketRepository,
     IEventRepository eventRepository,
     IUnitOfWork unitOfWork,
-    IPaymentService paymentService)
+    IPaymentService paymentService,
+    TicketCodeSigner? ticketCodes = null)
 {
     /// <summary>How long a pending booking keeps its tickets before it can expire.</summary>
     public static readonly TimeSpan HoldDuration = TimeSpan.FromMinutes(15);
@@ -164,7 +165,7 @@ public class BookingService (
         return responses;
     }
 
-    private static BookingResponseDto ToResponse(Booking booking, Event? ev, string? clientSecret = null) => new() {
+    private BookingResponseDto ToResponse(Booking booking, Event? ev, string? clientSecret = null) => new() {
         Id = booking.Id,
         EventId = booking.EventId,
         Event = ev == null ? null : new BookingEventDto {
@@ -188,7 +189,15 @@ public class BookingService (
         CreatedAt = booking.CreatedAt,
         ExpiresAt = booking.CreatedAt + HoldDuration,
         ClientSecret = string.IsNullOrEmpty(clientSecret) ? null : clientSecret,
+        TicketCodes = TicketCodesFor(booking),
     };
+
+    /// <summary>One signed QR code per admitted person, only once the booking is paid.</summary>
+    private List<string> TicketCodesFor(Booking booking) =>
+        ticketCodes == null || booking.Status != BookingStatus.Confirmed
+            ? []
+            : Enumerable.Range(1, booking.Tickets.Sum(t => t.Quantity))
+                .Select(n => ticketCodes.Sign(booking.Id, n)).ToList();
 
     /// <summary>
     /// Asks Stripe whether the booking has been paid and confirms it if so. Lets the

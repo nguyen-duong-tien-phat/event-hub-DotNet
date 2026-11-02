@@ -127,7 +127,14 @@ builder.Services.AddScoped<TicketService>();
 builder.Services.AddScoped<IBookingRepository, BookingRepository>();
 builder.Services.AddScoped<EventService>();
 builder.Services.AddScoped<IEventRepository, EventRepository>();
+// Signs the QR codes on tickets. Kept apart from the JWT key so rotating one does not break the other.
+var ticketSecret = builder.Configuration["Tickets:Secret"];
+if (string.IsNullOrEmpty(ticketSecret))
+    throw new InvalidOperationException("Tickets__Secret is not configured.");
+builder.Services.AddSingleton(new TicketCodeSigner(ticketSecret));
 builder.Services.AddScoped<BookingService>();
+builder.Services.AddScoped<ICheckInRepository, CheckInRepository>();
+builder.Services.AddScoped<CheckInService>();
 builder.Services.AddScoped<ISavedEventRepository, SavedEventRepository>();
 builder.Services.AddScoped<SavedEventService>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();

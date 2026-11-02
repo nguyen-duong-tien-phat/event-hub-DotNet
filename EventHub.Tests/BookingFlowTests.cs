@@ -21,8 +21,10 @@ public class BookingFlowTests {
             .ReturnsAsync(new PaymentIntentResult { PaymentIntentId = "pi_1", ClientSecret = "secret_1" });
     }
 
+    private static readonly TicketCodeSigner Signer = new("test-secret-key-for-ticket-codes");
+
     private BookingService CreateService() =>
-        new(_bookingRepo.Object, _ticketRepo.Object, _eventRepo.Object, _unitOfWork.Object, _payment.Object);
+        new(_bookingRepo.Object, _ticketRepo.Object, _eventRepo.Object, _unitOfWork.Object, _payment.Object, Signer);
 
     private void GivenTicket(string id, decimal price, string eventId = "event_1", int maxPerOrder = 4, string type = "General") =>
         _ticketRepo.Setup(r => r.GetByIdAsync(id)).ReturnsAsync(new Ticket {
@@ -442,6 +444,40 @@ public class BookingFlowTests {
         var dto = await CreateService().ToResponseAsync(booking);
 
         Assert.Null(dto.ClientSecret);
+    }
+
+    [Fact]
+    public async Task ToResponseAsync_ConfirmedBooking_HasOneSignedCodePerTicket() {
+        var booking = new Booking {
+            EventId = "event_1", UserId = "user_1", Status = BookingStatus.Confirmed,
+            Tickets = [
+                new BookingTicket { TicketId = "t1", Quantity = 2 },
+                new BookingTicket { TicketId = "t2", Quantity = 1 },
+            ],
+        };
+
+        var dto = await CreateService().ToResponseAsync(booking);
+
+        Assert.Equal(3, dto.TicketCodes.Count);
+        for (var i = 0; i < 3; i++) {
+            Assert.True(Signer.TryVerify(dto.TicketCodes[i], out var id, out var number));
+            Assert.Equal(booking.Id, id);
+            Assert.Equal(i + 1, number);
+        }
+    }
+
+    [Theory]
+    [InlineData(BookingStatus.Pending)]
+    [InlineData(BookingStatus.Cancelled)]
+    public async Task ToResponseAsync_UnpaidOrCancelledBooking_HasNoCodes(BookingStatus status) {
+        var booking = new Booking {
+            EventId = "event_1", UserId = "user_1", Status = status,
+            Tickets = [new BookingTicket { TicketId = "t1", Quantity = 2 }],
+        };
+
+        var dto = await CreateService().ToResponseAsync(booking);
+
+        Assert.Empty(dto.TicketCodes);
     }
 
     [Fact]

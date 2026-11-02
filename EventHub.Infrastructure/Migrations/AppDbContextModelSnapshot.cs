@@ -142,6 +142,36 @@ namespace EventHub.Infrastructure.Migrations
                     b.ToTable("Bookings");
                 });
 
+            modelBuilder.Entity("EventHub.Core.Bookings.TicketCheckIn", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BookingId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CheckedInBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookingId", "Number")
+                        .IsUnique();
+
+                    b.ToTable("TicketCheckIns");
+                });
+
             modelBuilder.Entity("EventHub.Core.Events.Event", b =>
                 {
                     b.Property<string>("Id")
