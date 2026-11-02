@@ -4,6 +4,7 @@ using EventHub.BackgroundJobs;
 using EventHub.Core.Auth;
 using EventHub.Core.Bookings;
 using EventHub.Core.Common;
+using EventHub.Core.Email;
 using EventHub.Core.Events;
 using EventHub.Core.Payments;
 using EventHub.Core.SavedEvents;
@@ -13,6 +14,7 @@ using EventHub.Infrastructure.Auth;
 using EventHub.Infrastructure.Bookings;
 using EventHub.Infrastructure.Caching;
 using EventHub.Infrastructure.Common;
+using EventHub.Infrastructure.Email;
 using EventHub.Infrastructure.Data;
 using EventHub.Infrastructure.Events;
 using EventHub.Infrastructure.SavedEvents;
@@ -68,6 +70,30 @@ if (string.IsNullOrEmpty(jwtKey))
 builder.Services.AddScoped(_ => new TokenService(jwtKey, jwtIssuer, jwtAudience, jwtExpiry));
 
 var refreshTokenDays = int.Parse(builder.Configuration["Jwt:RefreshTokenDays"] ?? "30");
+var smtpHost = builder.Configuration["Smtp:Host"];
+if (!string.IsNullOrEmpty(smtpHost)) {
+    builder.Services.AddSingleton<IEmailSender>(new SmtpEmailSender(
+        smtpHost,
+        int.Parse(builder.Configuration["Smtp:Port"] ?? "25"),
+        builder.Configuration["Smtp:From"] ?? "Event Hub <no-reply@eventhub.local>",
+        builder.Configuration["Smtp:User"],
+        builder.Configuration["Smtp:Password"]));
+}
+else {
+    // No mail server configured: emails are written to the log.
+    builder.Services.AddSingleton<IEmailSender, LogEmailSender>();
+}
+
+builder.Services.AddScoped<IPasswordResetRepository, PasswordResetRepository>();
+builder.Services.AddScoped(sp => new PasswordResetService(
+    sp.GetRequiredService<IPasswordResetRepository>(),
+    sp.GetRequiredService<IUserRepository>(),
+    sp.GetRequiredService<IPasswordHasher<User>>(),
+    sp.GetRequiredService<IRefreshTokenRepository>(),
+    sp.GetRequiredService<IEmailSender>(),
+    jwtKey,
+    TimeSpan.FromMinutes(30)));
+
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped(sp => new RefreshTokenService(
     sp.GetRequiredService<IRefreshTokenRepository>(),

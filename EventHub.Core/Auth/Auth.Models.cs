@@ -35,3 +35,19 @@ public class RefreshRequestDto {
     [Required]
     public string RefreshToken { get; set; } = string.Empty;
 }
+
+public class ForgotPasswordDto {
+    [Required, EmailAddress]
+    public string Email { get; set; } = string.Empty;
+}
+
+public class ResetPasswordDto {
+    [Required, EmailAddress]
+    public string Email { get; set; } = string.Empty;
+
+    [Required, RegularExpression(@"^\d{6}$", ErrorMessage = "The code is 6 digits")]
+    public string Code { get; set; } = string.Empty;
+
+    [Required, MinLength(8, ErrorMessage = "Password must be at least 8 characters")]
+    public string NewPassword { get; set; } = string.Empty;
+}

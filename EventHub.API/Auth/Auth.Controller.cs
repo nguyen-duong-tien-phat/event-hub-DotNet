@@ -13,6 +13,7 @@ namespace EventHub.Auth;
 public class AuthController(
     UserService userService,
     RefreshTokenService refreshTokenService,
+    PasswordResetService passwordResetService,
     IRateLimiter rateLimiter) : ControllerBase {
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginDto dto) {
@@ -55,6 +56,37 @@ public class AuthController(
     public async Task<IActionResult> Logout(RefreshRequestDto dto) {
         await refreshTokenService.RevokeAsync(dto.RefreshToken);
         return NoContent();
+    }
+
+    /// <summary>Emails a 6-digit code. Always answers the same, whether or not the email has an account.</summary>
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordDto dto) {
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var allowed =
+            await rateLimiter.IsAllowedAsync($"rateLimit:forgot:ip:{ipAddress}", maxAttempts: 10, window: TimeSpan.FromMinutes(10))
+            && await rateLimiter.IsAllowedAsync($"rateLimit:forgot:email:{dto.Email.Trim().ToLowerInvariant()}", maxAttempts: 3, window: TimeSpan.FromMinutes(10));
+        if (!allowed) {
+            return StatusCode(429, new { message = "Too many requests. Try again later." });
+        }
+
+        await passwordResetService.RequestAsync(dto.Email);
+        return NoContent();
+    }
+
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword(ResetPasswordDto dto) {
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var allowed =
+            await rateLimiter.IsAllowedAsync($"rateLimit:reset:ip:{ipAddress}", maxAttempts: 20, window: TimeSpan.FromMinutes(10))
+            && await rateLimiter.IsAllowedAsync($"rateLimit:reset:email:{dto.Email.Trim().ToLowerInvariant()}", maxAttempts: 10, window: TimeSpan.FromMinutes(10));
+        if (!allowed) {
+            return StatusCode(429, new { message = "Too many requests. Try again later." });
+        }
+
+        var done = await passwordResetService.ResetAsync(dto.Email, dto.Code, dto.NewPassword);
+        return done
+            ? NoContent()
+            : BadRequest(new { message = "That code is wrong or has expired." });
     }
 
     private static AuthResponseDto ToResponse(AuthTokens tokens) => new() {

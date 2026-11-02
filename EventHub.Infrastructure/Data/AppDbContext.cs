@@ -16,6 +16,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options): DbContext(opt
     public DbSet<Booking> Bookings => Set<Booking>();
     public DbSet<SavedEvent> SavedEvents => Set<SavedEvent>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<PasswordResetCode> PasswordResetCodes => Set<PasswordResetCode>();
     
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) {
         var entries = ChangeTracker.Entries<BaseEntity>()
@@ -64,6 +65,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options): DbContext(opt
         modelBuilder.Entity<RefreshToken>().Property(t => t.Id).ValueGeneratedNever();
         modelBuilder.Entity<RefreshToken>().HasIndex(t => t.TokenHash).IsUnique();
         modelBuilder.Entity<RefreshToken>().HasIndex(t => t.UserId);
+
+        modelBuilder.Entity<PasswordResetCode>().Property(c => c.Id).ValueGeneratedNever();
+        modelBuilder.Entity<PasswordResetCode>().HasIndex(c => c.UserId);
 
         modelBuilder.Entity<SavedEvent>().Property(s => s.Id).ValueGeneratedNever();
         modelBuilder.Entity<SavedEvent>()

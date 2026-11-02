@@ -1,6 +1,7 @@
 using EventHub.Auth;
 using EventHub.Core.Auth;
 using EventHub.Core.Common;
+using EventHub.Core.Email;
 using EventHub.Core.Users;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -10,6 +11,11 @@ using Moq;
 namespace EventHub.Tests;
 
 public class AuthControllerTest {
+    private static PasswordResetService NoResetService(Mock<IUserRepository> userRepo) => new(
+        new Mock<IPasswordResetRepository>().Object, userRepo.Object,
+        new Mock<IPasswordHasher<User>>().Object, new Mock<IRefreshTokenRepository>().Object,
+        new Mock<IEmailSender>().Object, "test-secret", TimeSpan.FromMinutes(30));
+
     [Fact]
     public async Task Login_WhenRateLimited_Returns429() {
         var rateLimiter = new Mock<IRateLimiter>();
@@ -23,7 +29,7 @@ public class AuthControllerTest {
         var refreshTokens = new RefreshTokenService(
             new Mock<IRefreshTokenRepository>().Object, userRepo.Object, tokenService, TimeSpan.FromDays(30));
         
-        var authController = new AuthController(userService, refreshTokens, rateLimiter.Object) {
+        var authController = new AuthController(userService, refreshTokens, NoResetService(userRepo), rateLimiter.Object) {
             ControllerContext = new ControllerContext {
                 HttpContext = new DefaultHttpContext()
             }
@@ -46,7 +52,7 @@ public class AuthControllerTest {
         var refreshTokens = new RefreshTokenService(
             new Mock<IRefreshTokenRepository>().Object, userRepo.Object, tokenService, TimeSpan.FromDays(30));
 
-        return new AuthController(userService, refreshTokens, rateLimiter.Object) {
+        return new AuthController(userService, refreshTokens, NoResetService(userRepo), rateLimiter.Object) {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
         };
     }
