@@ -80,6 +80,15 @@ public class EventRepository(AppDbContext db): Repository<Event>(db), IEventRepo
         return items;
     }
     
+    public async Task<List<string>> GetUpcomingCategoriesAsync() =>
+        await DbSet
+            .AsNoTracking()
+            .Where(e => e.StartsAt > DateTime.UtcNow)
+            .Select(e => e.Category)
+            .Distinct()
+            .OrderBy(c => c)
+            .ToListAsync();
+
     public async Task<List<Event>> GetUpcomingEventsAsync(int limit) {
         var items = await DbSet
             .AsNoTracking()

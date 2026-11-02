@@ -72,6 +72,9 @@ public class EventService(
     public async Task<List<Event>> GetFeaturedEventsAsync(int limit) =>
         await eventRepository.GetFeaturedEventsAsync(limit);
     
+    public async Task<List<string>> GetCategoriesAsync() =>
+        await eventRepository.GetUpcomingCategoriesAsync();
+
     public async Task<List<Event>> GetUpcomingEventsAsync(int limit) =>
         await eventRepository.GetUpcomingEventsAsync(limit);
 

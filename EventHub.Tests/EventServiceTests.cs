@@ -122,4 +122,13 @@ public class EventServiceTests {
 
         Assert.Null(EventListItemDto.FromEntity(ev).MinPrice);
     }
+
+    [Fact]
+    public async Task GetCategoriesAsync_ReturnsWhatTheRepositoryFindsForUpcomingEvents() {
+        _eventRepo.Setup(r => r.GetUpcomingCategoriesAsync()).ReturnsAsync(["Art", "Concert"]);
+
+        var categories = await CreateService().GetCategoriesAsync();
+
+        Assert.Equal(["Art", "Concert"], categories);
+    }
 }

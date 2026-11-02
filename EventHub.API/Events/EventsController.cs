@@ -47,6 +47,11 @@ public class EventsController(EventService eventService) : ControllerBase {
         return Ok(result.Select(EventListItemDto.FromEntity).ToList());
     }
 
+    /// <summary>Categories to offer in the filters: only those with an upcoming event.</summary>
+    [HttpGet("categories")]
+    public async Task<ActionResult<List<string>>> GetCategories() =>
+        Ok(await eventService.GetCategoriesAsync());
+
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(string id) {
         var ev = await eventService.GetByIdAsync(id);
