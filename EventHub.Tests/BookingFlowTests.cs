@@ -380,6 +380,39 @@ public class BookingFlowTests {
     }
 
     [Fact]
+    public async Task CancelAsync_CalledTwice_ReturnsTheCancelledBooking_AndGivesTicketsBackOnce() {
+        var booking = BookingWithIntent(BookingStatus.Pending);
+        _payment.Setup(p => p.CancelPaymentIntentAsync("pi_1")).ReturnsAsync(true);
+        var service = CreateService();
+
+        await service.CancelAsync(booking.Id, "user_1");
+        var second = await service.CancelAsync(booking.Id, "user_1");
+
+        Assert.Equal(BookingStatus.Cancelled, second!.Status);
+        _ticketRepo.Verify(r => r.ReleaseAsync(booking.Tickets), Times.Once);
+        _payment.Verify(p => p.CancelPaymentIntentAsync("pi_1"), Times.Once);
+    }
+
+    [Fact]
+    public async Task CancelAsync_OnAnAlreadyCancelledBooking_DoesNotTouchTicketsOrStripe() {
+        var booking = BookingWithIntent(BookingStatus.Cancelled);
+
+        var result = await CreateService().CancelAsync(booking.Id, "user_1");
+
+        Assert.Equal(BookingStatus.Cancelled, result!.Status);
+        _ticketRepo.Verify(r => r.ReleaseAsync(It.IsAny<List<BookingTicket>>()), Times.Never);
+        _payment.Verify(p => p.CancelPaymentIntentAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CancelAsync_OnSomeoneElsesCancelledBooking_StillThrows() {
+        var booking = BookingWithIntent(BookingStatus.Cancelled);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            CreateService().CancelAsync(booking.Id, "user_2"));
+    }
+
+    [Fact]
     public async Task ToResponseAsync_ShowsSubtotalFeeTotalAndHoldTime() {
         _eventRepo.Setup(r => r.GetByIdAsync("event_1")).ReturnsAsync(new Event {
             Id = "event_1", Title = "Neon Nights", Description = "d", Location = "Hà Nội", OrganizerId = "o",

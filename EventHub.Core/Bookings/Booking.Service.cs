@@ -267,10 +267,12 @@ public class BookingService (
             throw new UnauthorizedAccessException("You can only cancel your own bookings");
         }
 
+        // Cancelling twice (a retry, or the expiry job got there first) is the same as once.
+        // Return early: running on would give the tickets back a second time.
         if (booking.Status == BookingStatus.Cancelled) {
-            throw new InvalidOperationException("Booking is already cancelled");
+            return booking;
         }
-        
+
         await unitOfWork.BeginTransactionAsync();
 
         try {
