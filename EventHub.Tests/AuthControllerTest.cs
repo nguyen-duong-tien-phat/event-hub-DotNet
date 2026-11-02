@@ -38,4 +38,49 @@ public class AuthControllerTest {
         // Confirm password was NEVER checked — rejected before reaching that logic
         userRepo.Verify(r => r.GetByEmailAsync(It.IsAny<string>()), Times.Never);
     }
+
+    private static AuthController CreateController(
+        Mock<IRateLimiter> rateLimiter, Mock<IUserRepository> userRepo) {
+        var userService = new UserService(userRepo.Object, new Mock<IPasswordHasher<User>>().Object);
+        var tokenService = new TokenService("dev-secret-key-at-least-32-characters-long", "EventHub", "EventHubUsers", 15);
+        var refreshTokens = new RefreshTokenService(
+            new Mock<IRefreshTokenRepository>().Object, userRepo.Object, tokenService, TimeSpan.FromDays(30));
+
+        return new AuthController(userService, refreshTokens, rateLimiter.Object) {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+        };
+    }
+
+    [Fact]
+    public async Task Login_WhenOneAccountIsBeingGuessed_Returns429EvenFromAFreshAddress() {
+        var rateLimiter = new Mock<IRateLimiter>();
+        // The address is fine, but this account has had too many tries.
+        rateLimiter.Setup(r => r.IsAllowedAsync(It.Is<string>(k => k.StartsWith("rateLimit:login:ip:")), It.IsAny<int>(), It.IsAny<TimeSpan>()))
+            .ReturnsAsync(true);
+        rateLimiter.Setup(r => r.IsAllowedAsync(It.Is<string>(k => k.StartsWith("rateLimit:login:email:")), It.IsAny<int>(), It.IsAny<TimeSpan>()))
+            .ReturnsAsync(false);
+        var userRepo = new Mock<IUserRepository>();
+
+        var result = await CreateController(rateLimiter, userRepo)
+            .Login(new LoginDto { Email = "Victim@Test.com", Password = "x" });
+
+        Assert.Equal(429, Assert.IsType<ObjectResult>(result).StatusCode);
+        userRepo.Verify(r => r.GetByEmailAsync(It.IsAny<string>()), Times.Never);
+        // The account is counted whatever the capitals or spaces of the email.
+        rateLimiter.Verify(r => r.IsAllowedAsync("rateLimit:login:email:victim@test.com", It.IsAny<int>(), It.IsAny<TimeSpan>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Register_WhenRateLimited_Returns429AndCreatesNoUser() {
+        var rateLimiter = new Mock<IRateLimiter>();
+        rateLimiter.Setup(r => r.IsAllowedAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<TimeSpan>()))
+            .ReturnsAsync(false);
+        var userRepo = new Mock<IUserRepository>();
+
+        var result = await CreateController(rateLimiter, userRepo)
+            .Register(new RegisterDto { Email = "a@b.c", Password = "Passw0rd!x", FullName = "A" });
+
+        Assert.Equal(429, Assert.IsType<ObjectResult>(result).StatusCode);
+        userRepo.Verify(r => r.AddAsync(It.IsAny<User>()), Times.Never);
+    }
 }

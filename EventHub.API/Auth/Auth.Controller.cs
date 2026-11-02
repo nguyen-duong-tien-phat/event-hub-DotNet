@@ -17,10 +17,12 @@ public class AuthController(
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginDto dto) {
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        var rateLimitKey = $"rateLimit:login:{ipAddress}";
 
+        // Two layers. By address: stops one machine hammering the endpoint. By account:
+        // stops guessing one password from many addresses, which the first layer cannot see.
         var allowed =
-            await rateLimiter.IsAllowedAsync(rateLimitKey, maxAttempts: 5, window: TimeSpan.FromMinutes(1));
+            await rateLimiter.IsAllowedAsync($"rateLimit:login:ip:{ipAddress}", maxAttempts: 20, window: TimeSpan.FromMinutes(1))
+            && await rateLimiter.IsAllowedAsync($"rateLimit:login:email:{dto.Email.Trim().ToLowerInvariant()}", maxAttempts: 10, window: TimeSpan.FromMinutes(15));
 
         if (!allowed) {
             return StatusCode(429, new { message = "Too many login attempts. Try again later." });
@@ -66,6 +68,13 @@ public class AuthController(
 
     [HttpPost("register")]
     public async Task<IActionResult> Register(RegisterDto dto) {
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var allowed = await rateLimiter.IsAllowedAsync(
+            $"rateLimit:register:{ipAddress}", maxAttempts: 5, window: TimeSpan.FromMinutes(10));
+        if (!allowed) {
+            return StatusCode(429, new { message = "Too many sign-ups. Try again later." });
+        }
+
         await userService.CreateAsync(new CreateUserRequest {
             Email = dto.Email,
             FullName = dto.FullName,

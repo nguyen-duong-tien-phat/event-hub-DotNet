@@ -11,11 +11,18 @@ namespace EventHub.Bookings;
 [ApiController]
 [Route("bookings")]
 [Authorize]
-public class BookingsController(BookingService bookingService) : ControllerBase {
+public class BookingsController(BookingService bookingService, IRateLimiter rateLimiter) : ControllerBase {
     [Authorize(Roles = "Admin, Attendee")]
     [HttpPost]
     public async Task<IActionResult> Create(CreateBookingDto dto) {
         var userId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
+
+        // Each booking holds tickets for 15 minutes, so a script could empty an event by
+        // creating bookings in a loop. A real buyer never comes close to this.
+        if (!await rateLimiter.IsAllowedAsync($"rateLimit:booking:{userId}", maxAttempts: 10, window: TimeSpan.FromMinutes(1))) {
+            return StatusCode(429, new { message = "Too many booking attempts. Try again in a moment." });
+        }
+
         var idempotencyKey = Request.Headers["Idempotency-Key"].FirstOrDefault();
         if (idempotencyKey is { Length: > 100 }) {
             return BadRequest(new { message = "Idempotency-Key is too long" });
