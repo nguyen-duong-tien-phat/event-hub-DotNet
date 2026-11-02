@@ -13,4 +13,7 @@ public interface IPasswordResetRepository : IRepository<PasswordResetCode> {
     Task<bool> TryConsumeAsync(string id);
 
     Task InvalidateAllForUserAsync(string userId);
+
+    /// <summary>Deletes codes that expired before the given time, used or not.</summary>
+    Task<int> DeleteExpiredAsync(DateTime expiredBefore);
 }

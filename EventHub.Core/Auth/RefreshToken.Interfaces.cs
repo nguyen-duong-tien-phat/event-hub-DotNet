@@ -12,4 +12,10 @@ public interface IRefreshTokenRepository : IRepository<RefreshToken> {
     Task<bool> TryRevokeAsync(string id);
 
     Task RevokeAllForUserAsync(string userId);
+
+    /// <summary>
+    /// Deletes tokens that expired before the given time. Revoked tokens that have not expired
+    /// are kept on purpose: seeing one used again is how a stolen token is noticed.
+    /// </summary>
+    Task<int> DeleteExpiredAsync(DateTime expiredBefore);
 }

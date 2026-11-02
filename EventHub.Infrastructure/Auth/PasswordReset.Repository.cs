@@ -35,4 +35,7 @@ public class PasswordResetRepository(AppDbContext db) : Repository<PasswordReset
             .Where(c => c.UserId == userId && c.UsedAt == null)
             .ExecuteUpdateAsync(s => s.SetProperty(c => c.UsedAt, now));
     }
+
+    public Task<int> DeleteExpiredAsync(DateTime expiredBefore) =>
+        DbSet.Where(c => c.ExpiresAt < expiredBefore).ExecuteDeleteAsync();
 }
