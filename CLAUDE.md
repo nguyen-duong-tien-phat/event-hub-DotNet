@@ -1,0 +1,69 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+.NET 10 solution (`EventHub.sln`). Run everything from the repo root unless noted.
+
+```bash
+docker compose up -d postgres redis mailpit   # dependencies only (run the API from the IDE / dotnet run)
+docker compose up --build                     # full stack; API on :8080, Swagger at /swagger (Development only)
+
+dotnet build
+dotnet test                                   # CI runs: restore, build -c Release, test -c Release
+dotnet test --filter "FullyQualifiedName~BookingFlowTests"              # one class
+dotnet test --filter "FullyQualifiedName~BookingFlowTests.CreateAsync_AddsOnePercentServiceFee_AndChargesTheTotal"  # one test
+
+# EF migrations: the DbContext lives in Infrastructure, the startup project is the API
+cd EventHub.Infrastructure
+dotnet ef migrations add <Name> --startup-project ../EventHub.API
+dotnet ef database update --startup-project ../EventHub.API
+
+k6 run load-test.js                           # concurrency/oversell test; needs a JWT and ticketId edited at the top of the file
+```
+
+- `dotnet run --project EventHub.API` must be started from a directory where `../.env` resolves (`Program.cs` calls `Env.Load("../.env")`), i.e. from `EventHub.API/`, as the IDE launch profiles do (`http://localhost:8080`).
+- `.env` (gitignored) supplies `Jwt__Key`, `Tickets__Secret`, `Stripe__SecretKey`, `Stripe__WebhookSecret`, `DB_CONNECTION`. The app throws at startup if `Jwt:Key` or `Tickets:Secret` is empty. `appsettings.Development.json` is also gitignored; `appsettings.json` has no connection strings.
+- `RedisRateLimiterTests` use `[RedisFact]`, which skips unless Redis is on `localhost:6379`. All other tests mock repositories and need no infrastructure.
+
+## Architecture
+
+Three layers, dependency direction `API → Core ← Infrastructure` (the API references both; Core references neither). Core holds entities, services, and the interfaces (`IRepository<>`, `IUnitOfWork`, `ICacheService`, `IRateLimiter`, `IPaymentService`, `IEmailSender`) that Infrastructure implements. Services are therefore unit-tested with Moq and no database. Controllers are thin; all business rules live in Core services.
+
+Files are organized by feature folder in each project (`Bookings/`, `Auth/`, `Tickets/`, ...) and named `<Feature>.<Role>.cs` (`Booking.Service.cs`, `Booking.Repository.cs`, `Booking.Controller.cs`). Note the API project folder is `EventHub.API`.
+
+All wiring is in `EventHub.API/Program.cs`. Several services (`TokenService`, `RefreshTokenService`, `PasswordResetService`, `TicketCodeSigner`) take plain config values (secrets, TTLs) via constructor and are registered with factory lambdas rather than `IOptions`.
+
+### Booking and inventory (the core of the project)
+
+- `TicketRepository.TryReserveAsync` oversell protection is a single atomic `UPDATE "Tickets" SET "RemainingQuantity" = "RemainingQuantity" - n WHERE "Id" = x AND "RemainingQuantity" >= n`, with the rows-affected count as the verdict. Don't replace it with read-then-write, a version token, or app-level locking (README explains why). `ReleaseAsync` is the inverse.
+- `BookingService.CreateAsync` runs reserve + booking insert inside one `IUnitOfWork` transaction, then creates the Stripe PaymentIntent *after* commit so no DB transaction is held across a network call. If payment creation fails, the booking is cancelled and tickets released. Free bookings (total 0) skip payment and are `Confirmed` immediately. A 1% service fee is added on top.
+- Idempotency: `(UserId, IdempotencyKey)` has a unique index; a replay or a race loser returns the original booking (`BookingInProgressException` if the winner has not yet attached a PaymentIntent).
+- Booking status moves `Pending → Confirmed | Cancelled`. Confirmation comes from the Stripe webhook (`Webhook.Controller.cs`, signature-verified) or from the client-driven `ConfirmPaymentAsync`; both are idempotent. If a payment succeeds after the booking was cancelled, `RefundIfPaidAsync` refunds it.
+- `BookingExpiryJob` (a `BackgroundService`, every minute) cancels `Pending` bookings older than `BookingService.HoldDuration` (15 min) and releases their tickets. Both background jobs resolve scoped services through `IServiceScopeFactory`. They live in Infrastructure under the namespace `EventHub.BackgroundJobs`.
+- Repositories share one scoped `DbContext` per request, so never run repository calls in parallel (`Task.WhenAll`).
+
+### Tickets and check-in
+
+Confirmed bookings expose one HMAC-signed code per admitted person (`TicketCodeSigner.Sign(bookingId, n)`, `TryVerify`). `CheckInService` verifies the code and admits each `(booking, number)` once, enforced by the `CheckIn` entity. The signing secret (`Tickets:Secret`) is deliberately separate from `Jwt:Key`.
+
+### Auth
+
+- Short-lived JWT access tokens (`TokenService`) plus DB-backed refresh tokens with rotation and reuse detection (`RefreshTokenService`). `JsonWebTokenHandler.DefaultInboundClaimTypeMap` is cleared in `Program.cs`, so claim names are the raw JWT ones (not the .NET URI claim types).
+- Password reset: 6-digit code emailed through `IEmailSender`. `SmtpEmailSender` is used if `Smtp:Host` is set (docker-compose points it at Mailpit, inbox at http://localhost:8025); otherwise `LogEmailSender` writes the email to the log.
+- `ExpiredCredentialsCleanupJob` hourly deletes expired refresh tokens and reset codes via `ExpiredCredentialsCleaner`.
+- Roles: Attendee / Organizer / Admin. Ownership checks (attendee sees own bookings, organizer sees bookings of own events) are in the services, which throw `UnauthorizedAccessException`.
+
+### Redis
+
+- `RedisCacheService`: cache-aside for the events list, invalidated on event writes.
+- `RedisRateLimiter.IsAllowedAsync(key, maxAttempts, window)`: token bucket. Callers in controllers build the keys (`rateLimit:login:ip:*`, `rateLimit:login:email:*`, `rateLimit:booking:{userId}`, forgot/reset password) and return 429 when it says no.
+
+### Database
+
+PostgreSQL via EF Core/Npgsql. `Program.cs` builds the `NpgsqlDataSource` once and shares it as a singleton (building it per request throws under concurrent requests); keep that when touching DbContext setup. Migrations are in `EventHub.Infrastructure/Migrations`. `seed-events.sql` and `seed/` contain sample data.
+
+## Docs caveat
+
+`README.md` is partly out of date: it says the rate limiter is Fixed Window (now token bucket), calls the API project `EventHub.Api`, and omits refresh tokens, password reset, QR check-in, and the cleanup job. Trust the code.
