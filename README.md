@@ -1,163 +1,118 @@
 # EventHub
 
-A backend API for event ticketing and booking, built with ASP.NET Core (.NET 10) and PostgreSQL. The project's core focus: **preventing overselling of tickets under concurrent load**, using an atomic conditional-update pattern, verified with both automated tests and real concurrent load testing (k6).
+[![.NET CI](https://github.com/nguyen-duong-tien-phat/event-hub-DotNet/actions/workflows/dotnet-ci.yml/badge.svg)](https://github.com/nguyen-duong-tien-phat/event-hub-DotNet/actions/workflows/dotnet-ci.yml)
+![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)
+![Stripe](https://img.shields.io/badge/Stripe-payments-635BFF?logo=stripe&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-compose-2496ED?logo=docker&logoColor=white)
 
-## Stack
+**A ticketing and booking backend that never oversells.** When 30 people race for the last tickets, exactly the stock available is sold and everyone else gets a clean `409`. Built solo with ASP.NET Core 10, PostgreSQL, Redis and Stripe.
 
-- **ASP.NET Core 10** (Web API, controllers)
-- **PostgreSQL 16** (via Npgsql)
-- **Entity Framework Core** (ORM, migrations)
-- **Redis 7** (caching, rate limiting)
-- **Stripe** (payments, PaymentIntents, webhooks)
-- **JWT Bearer Authentication** (role-based authorization)
-- **xUnit + Moq** (unit tests)
-- **k6** (load testing)
-- **Docker + Docker Compose** (containerized API + Postgres + Redis)
+**Try it:** run it locally and open Swagger at `http://localhost:8080/swagger` (see [Run locally](#run-locally)).
+
+## Highlights
+
+- **Oversell-proof inventory.** One atomic SQL statement decides every reservation, so concurrent requests can't double-sell a ticket, with no locks in application code.
+- **Real payments.** Stripe PaymentIntents, signature-verified webhooks, idempotent confirmation, and automatic refunds when a payment lands after the booking expired.
+- **Safe to retry.** Per-user idempotency keys mean a double-click or network retry returns the original booking instead of creating a second one.
+- **Production-style auth.** Short-lived JWTs, rotating refresh tokens with reuse detection, rate-limited login, and email-code password reset.
+- **Tamper-proof QR check-in.** HMAC-signed ticket codes, each admitted exactly once at the door.
+
+## Tech stack
+
+| Layer | Choice | Why |
+|---|---|---|
+| Backend | ASP.NET Core 10 Web API | Thin controllers; all rules live in a framework-free Core project |
+| Database | PostgreSQL 16 + EF Core (Npgsql) | The atomic conditional `UPDATE` gives the oversell guarantee |
+| Cache / limits | Redis 7 | Cache-aside event list and a token-bucket rate limiter |
+| Payments | Stripe (PaymentIntents + webhooks) | Async confirmation, no DB transaction held across a network call |
+| Auth | JWT + DB-backed refresh tokens | Rotation and reuse detection |
+| Testing | xUnit, Moq, k6 | Services unit-tested with mocked repositories; k6 for concurrency |
+| Infra | Docker Compose, GitHub Actions | One command for the full stack; CI builds and tests every push |
 
 ## Architecture
 
-The project follows a layered architecture with a strict dependency direction: `Api → Core ← Infrastructure`.
-
-```
-EventHub.Api             HTTP layer: controllers, DTOs, JWT config, validation attributes
-    │
-    ▼
-EventHub.Core             Domain layer: entities, enums, repository interfaces,
-    ▲                     services (business logic), request models
-    │
-EventHub.Infrastructure   Data layer: DbContext, repository implementations,
-                           EF Core migrations
-```
-
-**Core** has zero dependency on EF Core, ASP.NET Core, or Infrastructure — it only depends on repository *interfaces* it defines itself. Infrastructure implements those interfaces. This means the business logic (`BookingService`, `EventService`, etc.) can be unit tested with mocked repositories, with no database required.
-
-### Request flow
-
-```
-Controller (thin — HTTP in/out only)
-    → Service (business logic)
-        → Repository interface (Core)
-            → Repository implementation (Infrastructure, backed by EF Core)
+```mermaid
+flowchart LR
+    Client([Client / Swagger]) --> API[EventHub.API<br/>controllers]
+    API --> Core[EventHub.Core<br/>services + interfaces]
+    Infra[EventHub.Infrastructure<br/>implementations] -. implements .-> Core
+    Infra --> PG[(PostgreSQL)]
+    Infra --> Redis[(Redis)]
+    Infra --> Stripe[Stripe]
+    Infra --> SMTP[SMTP / Mailpit]
+    Stripe -- webhook --> API
+    Jobs[Background jobs<br/>booking expiry, token cleanup] --> Infra
 ```
 
-## The core problem: concurrency-safe ticket booking
+Dependencies point inward: `API → Core ← Infrastructure`. Core defines the interfaces (`IRepository<>`, `IUnitOfWork`, `IPaymentService`, `ICacheService`, `IRateLimiter`, `IEmailSender`) and Infrastructure implements them, so every business rule is unit-tested with Moq and no database.
 
-The central challenge this project is built around: **when N tickets remain and M concurrent requests try to book, exactly N should succeed — never more (overselling), never fewer (false rejections).**
+### Booking and payment flow
 
-### The solution
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant A as API
+    participant D as PostgreSQL
+    participant S as Stripe
+    C->>A: POST /bookings (idempotency key)
+    A->>D: BEGIN: reserve tickets + insert Pending booking: COMMIT
+    A->>S: Create PaymentIntent
+    A-->>C: clientSecret
+    C->>S: Pay
+    S->>A: Webhook (signature verified)
+    A->>D: Pending → Confirmed
+    Note over A,D: Unpaid after 15 min: expiry job cancels the booking and releases tickets
+```
 
-Booking uses an **atomic conditional UPDATE** rather than a read-then-write pattern:
+## Technical challenges and solutions
+
+### 1. Selling exactly N tickets under concurrent load
+
+**Problem:** with N tickets left and M concurrent buyers, exactly N must succeed.
+**Solution:** reservation is a single statement whose rows-affected count is the verdict:
 
 ```sql
 UPDATE "Tickets"
-SET "RemainingQuantity" = "RemainingQuantity" - @quantity
-WHERE "Id" = @ticketId AND "RemainingQuantity" >= @quantity
+SET "RemainingQuantity" = "RemainingQuantity" - @n
+WHERE "Id" = @id AND "RemainingQuantity" >= @n
 ```
 
-This single SQL statement checks and decrements inventory atomically. The database serializes writes to the same row by design, so this pattern is correct under concurrency without needing an explicit application-level lock. It also avoids the "false conflict" problem of naive optimistic concurrency (version-token based approaches), where any successful write invalidates every other concurrent reader's version token — even when there was genuinely enough inventory for all of them.
+Postgres serializes writes to the row, so no read-then-write race exists. Version-token optimistic concurrency would reject buyers even when stock remained, and `SELECT ... FOR UPDATE` holds a row lock for the whole transaction. The reserve and the booking insert share one transaction, so a crash can't orphan a reservation.
 
-The reservation and the resulting `Booking` record insert are wrapped in a single database transaction, so a failure between the two steps can't leave an orphaned reservation with no corresponding booking.
+### 2. Taking payments without holding a transaction open
 
-### Why not other approaches?
+**Problem:** calling Stripe inside a DB transaction ties up connections and locks on a network call.
+**Solution:** commit the reservation first, then create the PaymentIntent. If Stripe fails, the booking is cancelled and tickets are released. Confirmation comes from a signature-verified webhook or a client call, and both are idempotent. A `(UserId, IdempotencyKey)` unique index makes retries and races return the original booking, and a payment that succeeds after cancellation is refunded.
 
-- **Pessimistic locking** (`SELECT ... FOR UPDATE`) is also correct here, but holds a row lock for the full duration of the transaction, creating a queuing bottleneck under high contention. The atomic UPDATE avoids this since the lock is only held for the instant of the write.
-- **Naive optimistic concurrency** (comparing a row-version/`xmin` token) causes false failures: with 100 tickets and 50 concurrent requests, only the first writer succeeds per round — the other 49 fail and must retry, even though inventory was never actually exhausted.
+### 3. Tickets that can't be forged or reused
 
-### Proof
+**Problem:** a QR code anyone can guess or screenshot-replay is worthless.
+**Solution:** each admitted person gets an HMAC-signed code over `(bookingId, n)`. Check-in verifies the signature and records each `(booking, number)` once. The signing secret is deliberately separate from the JWT key, so a leaked JWT key can't mint tickets.
 
-The concurrency guarantee is verified two ways:
+## Results
 
-1. **Automated tests** (`EventHub.Tests`) — `BookingService`'s success, sold-out, and not-found paths are covered with mocked repositories.
-2. **Real load test** (k6) — 30 concurrent requests fired at a ticket with known remaining inventory; verified the exact expected number succeeded (matching remaining stock) and the rest received `409 Conflict`, with zero overselling.
+- **90+ automated tests** (xUnit + Moq) covering booking, payments, check-in, refresh tokens, password reset and cleanup jobs. CI builds and tests on every push.
+- **Concurrency verified with k6:** 30 simultaneous booking requests against a ticket with known stock. Successes matched the remaining stock exactly, the rest received `409 Conflict`, and nothing oversold. See [`load-test.js`](load-test.js).
+- **What I learned:** pushing correctness into one atomic database statement is simpler and faster than coordinating it in application code, and keeping network calls out of transactions makes failure handling tractable.
 
-## Features
+## Run locally
 
-- JWT authentication, role-based authorization (Attendee / Organizer / Admin)
-- Full CRUD for Events, Tickets, Users, with pagination
-- Concurrency-safe Booking creation
-- Input validation via data annotations, including a custom `[FutureDate]` attribute
-- Password hashing via `IPasswordHasher<T>`
-- Stripe payment integration with idempotent PaymentIntent creation and webhook-driven confirmation
-- Redis-backed caching (cache-aside, invalidated on write) and rate limiting (Fixed Window)
-- Background job that automatically expires abandoned pending bookings and releases their reserved inventory
-
-## Payment flow
-
-Booking and payment are decoupled to avoid holding a database lock during a network call to Stripe:
-
-1. `POST /api/bookings` atomically reserves the ticket (see below), creates a `Booking` with `Status = Pending`, then requests a Stripe PaymentIntent for the total amount. The response includes a `clientSecret` for the frontend to complete payment directly with Stripe.
-2. The PaymentIntent is created with an **idempotency key** (the booking's id), so a retried request against Stripe can't create a duplicate charge.
-3. If PaymentIntent creation itself fails, the reservation is released and the booking is cancelled — a failed payment setup should never hold inventory hostage.
-4. Stripe confirms payment asynchronously via a webhook (`POST /api/webhooks/stripe`). The handler verifies the request's signature before trusting anything in it, then updates the booking to `Confirmed` or `Cancelled` (releasing the ticket on failure).
-5. The webhook handler is idempotent: it checks the booking is still `Pending` before acting, since Stripe may redeliver the same event more than once.
-6. A `BackgroundService` periodically finds bookings that have sat in `Pending` for too long (abandoned checkouts) and expires them, releasing their reserved tickets back into inventory.
-
-## Redis usage
-
-- **Caching**: `GET /api/events` results are cached (cache-aside pattern), invalidated on any Event create/update so reads never serve stale data past a write.
-- **Rate limiting**: login attempts are limited per IP (Fixed Window algorithm, via Redis `INCR`/`EXPIRE`), returning `429` once exceeded.
-
-## Running locally
+Requires Docker. Create a `.env` in the repo root with `DB_CONNECTION`, `Jwt__Key`, `Tickets__Secret`, `Stripe__SecretKey` and `Stripe__WebhookSecret`, then:
 
 ```bash
-docker compose up --build
+git clone git@github.com:nguyen-duong-tien-phat/event-hub-DotNet.git
+cd event-hub-DotNet
+docker compose up --build        # API :8080, Swagger :8080/swagger, Mailpit inbox :8025
+dotnet test                      # unit tests, no infrastructure needed
+k6 run load-test.js              # concurrency test (set a JWT and ticketId at the top first)
 ```
 
-This starts PostgreSQL, Redis, and the API together. Once running:
+For the Stripe webhook locally, run `stripe listen --forward-to localhost:8080/webhooks/stripe` and use the printed `whsec_...` as `Stripe__WebhookSecret`.
 
-- API: `http://localhost:8080`
-- Swagger UI: `http://localhost:8080/swagger`
+## Roadmap
 
-### Testing the Stripe webhook locally
-
-Requires the [Stripe CLI](https://stripe.com/docs/stripe-cli):
-
-```bash
-stripe listen --forward-to localhost:8080/api/webhooks/stripe
-```
-
-This prints a webhook signing secret (`whsec_...`) — set it as `Stripe:WebhookSecret` in `appsettings.Development.json`.
-
-### Running migrations
-
-```bash
-cd EventHub.Infrastructure
-dotnet ef database update --startup-project ../EventHub.Api
-```
-
-### Running tests
-
-```bash
-dotnet test
-```
-
-### Running the load test
-
-```bash
-k6 run load-test.js
-```
-
-(Requires a valid JWT and a real `ticketId` with known `RemainingQuantity`, set at the top of `load-test.js`.)
-
-## Project structure
-
-```
-EventHub/
-├── EventHub.Api/              Controllers, DTOs, validation attributes, JWT config,
-│                               background jobs (booking expiry)
-├── EventHub.Core/             Entities, enums, service layer, repository interfaces,
-│                               ICacheService / IRateLimiter / IPaymentService abstractions
-├── EventHub.Infrastructure/   DbContext, repository implementations, migrations,
-│                               Redis cache/rate-limiter, Stripe payment service
-├── EventHub.Tests/            xUnit tests
-├── docker-compose.yml         Postgres + Redis + API
-├── Dockerfile
-└── load-test.js
-```
-
-## What's next
-
-- A Flutter mobile client consuming this API (auth, event browsing, booking, Stripe payment)
-- Automated tests for the payment and webhook flow
-- Structured logging (`ILogger`, replacing ad-hoc `Console.WriteLine` debug statements)
-- Asynchronous email notifications on booking confirmation
+- Webhook and payment-flow integration tests
+- Structured logging throughout
+- Email notification on booking confirmation
