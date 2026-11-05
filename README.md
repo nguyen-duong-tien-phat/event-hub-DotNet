@@ -111,7 +111,7 @@ Postgres serializes writes to the row, so no read-then-write race exists. Versio
 
 ## Run locally
 
-Requires Docker. Create a `.env` in the repo root with `DB_CONNECTION`, `Jwt__Key`, `Tickets__Secret`, `Stripe__SecretKey` and `Stripe__WebhookSecret`. The compose file already runs a Floci container (a local AWS emulator) for event images and points the API at it; do the one-time bucket setup in [Event images and CORS](#event-images-and-cors) after the first start. Then:
+Requires Docker. Copy [`.env.example`](.env.example) to `.env` in the repo root and fill in `Jwt__Key`, `Tickets__Secret` and the two Stripe keys. The compose file already runs a Floci container (a local AWS emulator) for event images and points the API at it; do the one-time bucket setup in [Event images and CORS](#event-images-and-cors) after the first start. Then:
 
 ```bash
 git clone git@github.com:nguyen-duong-tien-phat/event-hub-DotNet.git

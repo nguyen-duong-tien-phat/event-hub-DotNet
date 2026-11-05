@@ -24,7 +24,7 @@ k6 run load-test.js                           # concurrency/oversell test; needs
 ```
 
 - `dotnet run --project EventHub.API` must be started from a directory where `../.env` resolves (`Program.cs` calls `Env.Load("../.env")`), i.e. from `EventHub.API/`, as the IDE launch profiles do (`http://localhost:8080`).
-- `.env` (gitignored) supplies `Jwt__Key`, `Tickets__Secret`, `Stripe__SecretKey`, `Stripe__WebhookSecret`, `DB_CONNECTION`, and, when running outside compose, the S3 settings (see Event images). The app throws at startup if `Jwt:Key`, `Tickets:Secret`, `S3:Bucket` or `S3:PublicBaseUrl` is empty. `appsettings.Development.json` is also gitignored; `appsettings.json` has no connection strings.
+- `.env` (gitignored; copy `.env.example`, which lists every variable) supplies `Jwt__Key`, `Tickets__Secret`, `Stripe__SecretKey`, `Stripe__WebhookSecret`, `DB_CONNECTION`, and, when running outside compose, the S3 settings (see Event images). The app throws at startup if `Jwt:Key`, `Tickets:Secret`, `S3:Bucket` or `S3:PublicBaseUrl` is empty. `appsettings.Development.json` is also gitignored; `appsettings.json` has no connection strings.
 - `RedisRateLimiterTests` use `[RedisFact]`, which skips unless Redis is on `localhost:6379`. All other tests mock repositories and need no infrastructure.
 
 ## Architecture
