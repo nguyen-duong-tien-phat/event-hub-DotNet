@@ -77,3 +77,7 @@ PostgreSQL via EF Core/Npgsql. `Program.cs` builds the `NpgsqlDataSource` once a
 ## Docs caveat
 
 `README.md` is a portfolio overview and skips detail, so trust the code when they differ. It does cover running locally, the one-time Floci bucket and CORS setup, and who may do what.
+
+## Commits
+
+Do not add attribution lines to commit messages or pull request descriptions: no `Co-Authored-By: Claude ...`, no "Generated with Claude Code" or similar. Write them as plain text.
