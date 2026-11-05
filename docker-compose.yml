@@ -40,6 +40,7 @@ services:
       ConnectionStrings__Redis: "redis:6379"
       Jwt__Key: ${Jwt__Key}
       Tickets__Secret: ${Tickets__Secret}
+      Cors__AllowedOrigins: "http://localhost:5173"
       Jwt__Issuer: "EventHub"
       Jwt__Audience: "EventHubUsers"
       Jwt__ExpiryMinutes: "15"

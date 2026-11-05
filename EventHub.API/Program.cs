@@ -180,10 +180,19 @@ builder.Services.AddSwaggerGen(options => {
 });
 
 
+// Browser clients (the web dashboard) live on another origin. Tokens travel in headers, not cookies, so no credentials.
+var corsOrigins = (builder.Configuration["Cors:AllowedOrigins"] ?? "http://localhost:5173")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
+    .WithOrigins(corsOrigins)
+    .WithHeaders("Authorization", "Content-Type", "Idempotency-Key")
+    .AllowAnyMethod()));
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 app.UseHttpsRedirection();
+app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
