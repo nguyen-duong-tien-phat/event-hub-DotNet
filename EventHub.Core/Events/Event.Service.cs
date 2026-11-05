@@ -16,7 +16,7 @@ public class EventService(
     ICacheService cache,
     UploadService uploads)
 {
-    private readonly string _cacheKeyPrefix = "events:";
+    public const string CacheKeyPrefix = "events:";
     
     public async Task<PagedResult<Event>> GetPagedAsync(
         int page, 
@@ -31,7 +31,7 @@ public class EventService(
     {
         var searchNormalize = search != null ? search.Trim().ToLower() :  string.Empty;
         var categoryNormalize = category != null ? category.Trim().ToLower() : string.Empty;
-        var cacheKey = $"{_cacheKeyPrefix}page={page}:pageSize={pageSize}:search={searchNormalize}:category={categoryNormalize}:minPrice={minPrice}:maxPrice={maxPrice}:from={from}:to={to}:organizer={organizerId}";
+        var cacheKey = $"{CacheKeyPrefix}page={page}:pageSize={pageSize}:search={searchNormalize}:category={categoryNormalize}:minPrice={minPrice}:maxPrice={maxPrice}:from={from}:to={to}:organizer={organizerId}";
         var cached = await cache.GetAsync(cacheKey);
         if (cached != null) {
             return JsonSerializer.Deserialize<PagedResult<Event>>(cached)!;
@@ -107,7 +107,7 @@ public class EventService(
         await eventRepository.AddAsync(newEvent);
         await eventRepository.SaveChangesAsync();
 
-        await cache.RemoveByPrefixAsync(_cacheKeyPrefix);
+        await cache.RemoveByPrefixAsync(CacheKeyPrefix);
         
         return newEvent;
     }
@@ -141,7 +141,7 @@ public class EventService(
         eventRepository.Update(existing);
         await eventRepository.SaveChangesAsync();
         
-        await cache.RemoveByPrefixAsync(_cacheKeyPrefix);
+        await cache.RemoveByPrefixAsync(CacheKeyPrefix);
         
         return existing;
     }
@@ -163,7 +163,7 @@ public class EventService(
 
         eventRepository.Delete(existing);
         await eventRepository.SaveChangesAsync();
-        await cache.RemoveByPrefixAsync(_cacheKeyPrefix);
+        await cache.RemoveByPrefixAsync(CacheKeyPrefix);
 
         // After the commit: a failed file delete only orphans the poster, it must not undo the delete.
         await uploads.DeleteUploadedAsync(UploadKind.EventImage, existing.ImageUrl);

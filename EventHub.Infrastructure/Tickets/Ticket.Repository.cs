@@ -32,6 +32,22 @@ public class TicketRepository(AppDbContext db) : Repository<Ticket>(db), ITicket
         return true;
     }
     
+    public async Task<bool> TryAdjustTotalAsync(string ticketId, int delta) {
+        var rowsAffected = await Db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE \"Tickets\" SET \"TotalQuantity\" = \"TotalQuantity\" + {delta}, \"RemainingQuantity\" = \"RemainingQuantity\" + {delta} WHERE \"Id\" = {ticketId} AND \"RemainingQuantity\" + {delta} >= 0"
+        );
+        if (rowsAffected == 0) return false;
+
+        // The SQL bypassed the change tracker, so refresh the copy this request already loaded.
+        var tracked = Db.ChangeTracker.Entries<Ticket>().FirstOrDefault(e => e.Entity.Id == ticketId);
+        if (tracked != null) await tracked.ReloadAsync();
+        return true;
+    }
+
+    public async Task<bool> TryDeleteUnsoldAsync(string ticketId) =>
+        await Db.Database.ExecuteSqlInterpolatedAsync(
+            $"DELETE FROM \"Tickets\" WHERE \"Id\" = {ticketId} AND \"RemainingQuantity\" = \"TotalQuantity\"") > 0;
+
     public async Task ReleaseAsync(List<BookingTicket> items) {
         foreach (var item in items) {
             await Db.Database.ExecuteSqlInterpolatedAsync(

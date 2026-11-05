@@ -1,3 +1,4 @@
+using EventHub.Core.Common;
 using EventHub.Core.Events;
 using EventHub.Core.Tickets;
 using EventHub.Core.Users;
@@ -8,8 +9,9 @@ namespace EventHub.Tests;
 public class TicketServiceTests {
     private readonly Mock<ITicketRepository> _ticketRepo = new();
     private readonly Mock<IEventRepository> _eventRepo = new();
+    private readonly Mock<ICacheService> _cache = new();
 
-    private TicketService CreateService() => new(_ticketRepo.Object, _eventRepo.Object);
+    private TicketService CreateService() => new(_ticketRepo.Object, _eventRepo.Object, _cache.Object);
 
     private void GivenEventOwnedBy(string organizerId) =>
         _eventRepo.Setup(r => r.GetByIdAsync("event_1")).ReturnsAsync(new Event {
@@ -89,5 +91,98 @@ public class TicketServiceTests {
     [Fact]
     public async Task UpdateAsync_ForATicketThatDoesNotExist_ReturnsNull() {
         Assert.Null(await CreateService().UpdateAsync("org_1", UserRole.Organizer, "missing", new UpdateTicketRequest { Price = 25m }));
+    }
+
+    [Fact]
+    public async Task CreateAsync_ClearsTheCachedEventLists() {
+        GivenEventOwnedBy("org_1");
+
+        await CreateService().CreateAsync("org_1", UserRole.Organizer, NewRequest());
+
+        _cache.Verify(c => c.RemoveByPrefixAsync("events:"), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_NeverSavesTheWholeTicket_SoItCannotUndoTicketsSoldMeanwhile() {
+        GivenEventOwnedBy("org_1");
+        GivenTicket();
+
+        await CreateService().UpdateAsync("org_1", UserRole.Organizer, "ticket_1", new UpdateTicketRequest { Price = 25m });
+
+        _ticketRepo.Verify(r => r.Update(It.IsAny<Ticket>()), Times.Never);
+        _cache.Verify(c => c.RemoveByPrefixAsync("events:"), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_RaisingTheTotal_AddsTheDifferenceToTheStockInOneStep() {
+        GivenEventOwnedBy("org_1");
+        GivenTicket(); // total 5
+        _ticketRepo.Setup(r => r.TryAdjustTotalAsync("ticket_1", 3)).ReturnsAsync(true);
+
+        await CreateService().UpdateAsync("org_1", UserRole.Organizer, "ticket_1", new UpdateTicketRequest { TotalQuantity = 8 });
+
+        _ticketRepo.Verify(r => r.TryAdjustTotalAsync("ticket_1", 3), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_LoweringTheTotalBelowWhatIsSold_ThrowsAndChangesNothing() {
+        GivenEventOwnedBy("org_1");
+        var ticket = GivenTicket();
+        _ticketRepo.Setup(r => r.TryAdjustTotalAsync("ticket_1", -4)).ReturnsAsync(false);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => CreateService().UpdateAsync(
+            "org_1", UserRole.Organizer, "ticket_1", new UpdateTicketRequest { TotalQuantity = 1, Price = 99m }));
+
+        Assert.Equal(10m, ticket.Price);
+        _ticketRepo.Verify(r => r.SaveChangesAsync(), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithTheSameTotal_LeavesTheStockAlone() {
+        GivenEventOwnedBy("org_1");
+        GivenTicket(); // total 5
+
+        await CreateService().UpdateAsync("org_1", UserRole.Organizer, "ticket_1", new UpdateTicketRequest { TotalQuantity = 5 });
+
+        _ticketRepo.Verify(r => r.TryAdjustTotalAsync(It.IsAny<string>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_OfAnUnsoldTicket_DeletesItAndClearsTheCache() {
+        GivenEventOwnedBy("org_1");
+        GivenTicket();
+        _ticketRepo.Setup(r => r.TryDeleteUnsoldAsync("ticket_1")).ReturnsAsync(true);
+
+        Assert.True(await CreateService().DeleteAsync("org_1", UserRole.Organizer, "ticket_1"));
+
+        _cache.Verify(c => c.RemoveByPrefixAsync("events:"), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_OfATicketWithSales_Throws_AndKeepsTheCache() {
+        GivenEventOwnedBy("org_1");
+        GivenTicket();
+        _ticketRepo.Setup(r => r.TryDeleteUnsoldAsync("ticket_1")).ReturnsAsync(false);
+
+        await Assert.ThrowsAsync<TicketHasSalesException>(
+            () => CreateService().DeleteAsync("org_1", UserRole.Organizer, "ticket_1"));
+
+        _cache.Verify(c => c.RemoveByPrefixAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ByAnotherOrganizer_ThrowsBeforeDeletingAnything() {
+        GivenEventOwnedBy("org_1");
+        GivenTicket();
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => CreateService().DeleteAsync("org_2", UserRole.Organizer, "ticket_1"));
+
+        _ticketRepo.Verify(r => r.TryDeleteUnsoldAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_OfATicketThatDoesNotExist_ReturnsFalse() {
+        Assert.False(await CreateService().DeleteAsync("org_1", UserRole.Organizer, "missing"));
     }
 }
