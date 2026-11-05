@@ -137,6 +137,31 @@ public class EventServiceTests {
     }
 
     [Fact]
+    public async Task GetPagedAsync_WithAnOrganizer_AsksTheRepositoryForThatOrganizersEvents() {
+        _eventRepo.Setup(r => r.GetEventsQuery(1, 10, null, null, null, null, null, null, "org_1"))
+            .ReturnsAsync((new List<Event>(), 0));
+
+        await CreateService().GetPagedAsync(1, 10, null, null, null, null, null, null, "org_1");
+
+        _eventRepo.Verify(r => r.GetEventsQuery(1, 10, null, null, null, null, null, null, "org_1"), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetPagedAsync_CachesEachOrganizersListSeparately() {
+        var keys = new List<string>();
+        _cache.Setup(c => c.GetAsync(It.IsAny<string>())).Callback<string>(keys.Add).ReturnsAsync((string?)null);
+        _eventRepo.Setup(r => r.GetEventsQuery(It.IsAny<int>(), It.IsAny<int>(), null, null, null, null, null, null, It.IsAny<string?>()))
+            .ReturnsAsync((new List<Event>(), 0));
+        var service = CreateService();
+
+        await service.GetPagedAsync(1, 10, null, null, null, null, null, null, "org_1");
+        await service.GetPagedAsync(1, 10, null, null, null, null, null, null, "org_2");
+        await service.GetPagedAsync(1, 10, null, null, null, null, null, null);
+
+        Assert.Equal(3, keys.Distinct().Count());
+    }
+
+    [Fact]
     public async Task DeleteAsync_ByTheOrganizer_DeletesTheEventAndItsPoster() {
         var existing = ExistingEvent();
         existing.ImageUrl = UploadedImage;

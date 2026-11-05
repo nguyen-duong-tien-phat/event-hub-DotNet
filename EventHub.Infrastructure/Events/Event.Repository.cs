@@ -23,9 +23,14 @@ public class EventRepository(AppDbContext db): Repository<Event>(db), IEventRepo
         decimal? minPrice,
         decimal? maxPrice,
         DateTime? from,
-        DateTime? to
+        DateTime? to,
+        string? organizerId
         ) {
         var query = DbSet.AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(organizerId)) {
+            query = query.Where(e => e.OrganizerId == organizerId);
+        }
 
         if (!string.IsNullOrWhiteSpace(search)) {
             query = query.Where(e => 

@@ -15,6 +15,9 @@ public class EventQuery : PaginationQuery {
     public decimal? MaxPrice { get; set; }
     public DateTime? From { get; set; }
     public DateTime? To { get; set; }
+
+    /// <summary>Only the events of this organizer; the dashboard uses it for "my events".</summary>
+    public string? OrganizerId { get; set; }
 }
 
 public class CreateEventRequest {

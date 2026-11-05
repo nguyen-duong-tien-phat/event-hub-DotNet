@@ -40,8 +40,9 @@ public class EventsController(EventService eventService, UploadService uploadSer
             query.Category,
             query.MinPrice,
             query.MaxPrice,
-            query.From, 
-            query.To);
+            query.From,
+            query.To,
+            query.OrganizerId);
         return Ok(result.Map(EventListItemDto.FromEntity));
     }
     

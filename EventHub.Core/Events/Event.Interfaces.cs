@@ -13,7 +13,8 @@ public interface IEventRepository: IRepository<Event> {
         decimal? minPrice,
         decimal? maxPrice,
         DateTime? from,
-        DateTime? to
+        DateTime? to,
+        string? organizerId
         );
 
     Task<List<Event>> GetFeaturedEventsAsync(int limit = 5);

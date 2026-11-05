@@ -26,17 +26,18 @@ public class EventService(
         decimal? minPrice,
         decimal? maxPrice,
         DateTime? from,
-        DateTime? to) 
+        DateTime? to,
+        string? organizerId = null)
     {
         var searchNormalize = search != null ? search.Trim().ToLower() :  string.Empty;
         var categoryNormalize = category != null ? category.Trim().ToLower() : string.Empty;
-        var cacheKey = $"{_cacheKeyPrefix}page={page}:pageSize={pageSize}:search={searchNormalize}:category={categoryNormalize}:minPrice={minPrice}:maxPrice={maxPrice}:from={from}:to={to}";
+        var cacheKey = $"{_cacheKeyPrefix}page={page}:pageSize={pageSize}:search={searchNormalize}:category={categoryNormalize}:minPrice={minPrice}:maxPrice={maxPrice}:from={from}:to={to}:organizer={organizerId}";
         var cached = await cache.GetAsync(cacheKey);
         if (cached != null) {
             return JsonSerializer.Deserialize<PagedResult<Event>>(cached)!;
         }
 
-        var (items, totalCount) = await eventRepository.GetEventsQuery(page, pageSize, search, category, minPrice, maxPrice, from, to);
+        var (items, totalCount) = await eventRepository.GetEventsQuery(page, pageSize, search, category, minPrice, maxPrice, from, to, organizerId);
         var result = new PagedResult<Event> {
             Items = items,
             Page = page,
