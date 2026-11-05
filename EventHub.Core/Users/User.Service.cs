@@ -32,12 +32,21 @@ public class UserService(
         return user;
     }
     
-    public async Task<User?> BecomeOrganizerAsync(string userId) {
+    /// <summary>
+    /// Sets a user's role. An admin cannot lower their own role, so at least one admin always remains.
+    /// The new role reaches the user's token when it is next refreshed (up to the access token's lifetime).
+    /// </summary>
+    /// <exception cref="UnauthorizedAccessException">The caller tried to take their own admin role away.</exception>
+    public async Task<User?> ChangeRoleAsync(string requestId, string userId, UserRole role) {
+        if (requestId == userId && role != UserRole.Admin) {
+            throw new UnauthorizedAccessException("You cannot lower your own role.");
+        }
+
         var user = await userRepository.GetByIdAsync(userId);
         if (user == null) return null;
 
-        user.Role = UserRole.Organizer;
-        userRepository.Update(user);
+        // No Update() call: EF then writes only the Role column, not a possibly stale password hash.
+        user.Role = role;
         await userRepository.SaveChangesAsync();
         return user;
     }

@@ -37,9 +37,12 @@ Authorization: Bearer {{token}}
 GET {{baseUrl}}/users/{id}
 Authorization: Bearer {{token}}
 
-### Promote a user to Organizer (replace {id})
-PATCH {{baseUrl}}/users/{id}/become-organizer
+### Change a user's role: Admin, Organizer or Attendee (replace {id})
+PATCH {{baseUrl}}/users/{id}/role
 Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "role": "Organizer" }
 
 
 ### =========================================

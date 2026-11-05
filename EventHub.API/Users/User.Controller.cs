@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using EventHub.Core.Common;
 using EventHub.Core.Users;
 using Microsoft.AspNetCore.Authorization;
@@ -33,10 +34,15 @@ public class UsersController(UserService userService): ControllerBase {
         return Ok(UserResponseDto.FromEntity(user));
     }
     
-    [HttpPatch("{id}/become-organizer")]
-    public async Task<ActionResult<UserResponseDto>> BecomeOrganizer(string id) {
-        var user = await userService.BecomeOrganizerAsync(id);
-        if (user == null) return NotFound();
-        return Ok(UserResponseDto.FromEntity(user));
+    [HttpPatch("{id}/role")]
+    public async Task<ActionResult<UserResponseDto>> ChangeRole(string id, UpdateUserRoleDto dto) {
+        var requestId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
+
+        try {
+            var user = await userService.ChangeRoleAsync(requestId, id, dto.Role!.Value);
+            return user == null ? NotFound() : Ok(UserResponseDto.FromEntity(user));
+        } catch (UnauthorizedAccessException e) {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = e.Message });
+        }
     }
 }

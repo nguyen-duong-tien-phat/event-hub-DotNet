@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace EventHub.Core.Users;
 
@@ -10,6 +11,13 @@ public class CreateUserRequest {
 }
 
 // DTOs
+public class UpdateUserRoleDto {
+    /// <summary>Nullable and required on purpose: a missing value would otherwise become 0, which is Admin.</summary>
+    [Required, EnumDataType(typeof(UserRole))]
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public UserRole? Role { get; set; }
+}
+
 public class CreateUserDto {
     [Required, EmailAddress]
     public string Email { get; set; } = string.Empty;
