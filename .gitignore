@@ -6,3 +6,5 @@ riderModule.iml
 **/appsettings.Development.json
 .env
 .DS_Store
+# graphify knowledge graph output
+graphify-out/
