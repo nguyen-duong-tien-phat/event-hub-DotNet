@@ -50,6 +50,9 @@ services:
       Cors__AllowedOrigins: ${Cors__AllowedOrigins:-http://localhost:5173}
       # Swagger UI at /swagger. This stack is for development; set false anywhere that is not.
       Swagger__Enabled: ${Swagger__Enabled:-true}
+      # Behind a reverse proxy: its address(es), comma separated. X-Forwarded-For is trusted only from them.
+      ForwardedHeaders__KnownProxies: ${ForwardedHeaders__KnownProxies:-}
+      ForwardedHeaders__KnownNetworks: ${ForwardedHeaders__KnownNetworks:-}
       Jwt__Issuer: ${Jwt__Issuer:-EventHub}
       Jwt__Audience: ${Jwt__Audience:-EventHubUsers}
       Jwt__ExpiryMinutes: ${Jwt__ExpiryMinutes:-15}

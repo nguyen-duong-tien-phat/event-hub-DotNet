@@ -41,6 +41,11 @@ All wiring is in `EventHub.API/Program.cs`. Several services (`TokenService`, `R
 - `UseHttpLogging` writes one line per request (method, path, status, duration; no query string, headers or bodies). It sits outside the exception handler so a 500 is logged too. Its category is raised to Information in `appsettings.json`.
 - `EventHub.Core` has no logger: `BookingService.ExpireAbandonedBookingAsync` still swallows per-booking failures silently.
 
+### Health and proxies
+
+- `GET /health/live` answers 200 while the process runs (no dependencies checked). `GET /health/ready` also checks PostgreSQL and Redis (`EventHub.API/Health`, 5 s timeout each) and answers 503 if either is down. Both are anonymous and are left out of the request log.
+- `UseForwardedHeaders` runs first and reads `X-Forwarded-For` and `X-Forwarded-Proto`, but only from loopback and the addresses in `ForwardedHeaders__KnownProxies` / `ForwardedHeaders__KnownNetworks` (CIDR). Anyone else could fake their address and dodge the per-IP rate limits, so do not trust all proxies. Without a proxy, leave both empty.
+
 ### Booking and inventory (the core of the project)
 
 - `TicketRepository.TryReserveAsync` oversell protection is a single atomic `UPDATE "Tickets" SET "RemainingQuantity" = "RemainingQuantity" - n WHERE "Id" = x AND "RemainingQuantity" >= n`, with the rows-affected count as the verdict. Don't replace it with read-then-write, a version token, or app-level locking (README explains why). `ReleaseAsync` is the inverse.

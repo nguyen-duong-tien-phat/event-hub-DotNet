@@ -13,6 +13,7 @@ using EventHub.Core.SavedEvents;
 using EventHub.Core.Tickets;
 using EventHub.Core.Users;
 using EventHub.Errors;
+using EventHub.Health;
 using EventHub.Infrastructure.Auth;
 using EventHub.Infrastructure.Bookings;
 using EventHub.Infrastructure.Caching;
@@ -25,9 +26,12 @@ using EventHub.Infrastructure.SavedEvents;
 using EventHub.Infrastructure.Tickets;
 using EventHub.Infrastructure.Users;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpLogging;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using System.Net;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -200,18 +204,38 @@ builder.Services.AddHttpLogging(options => {
     options.CombineLogs = true;
 });
 
+// Behind a reverse proxy every request would otherwise come from the proxy's address, so all users would
+// share one IP rate-limit bucket. The proxy's X-Forwarded-For is trusted only from the addresses listed here
+// (loopback is always trusted): anyone else could fake their address and dodge the limits.
+string[] ListOf(string key) => (builder.Configuration[key] ?? "")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+builder.Services.Configure<ForwardedHeadersOptions>(options => {
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    foreach (var ip in ListOf("ForwardedHeaders:KnownProxies")) options.KnownProxies.Add(IPAddress.Parse(ip));
+    foreach (var network in ListOf("ForwardedHeaders:KnownNetworks")) options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(network));
+});
+
+// /health/live: the process answers. /health/ready: it can also reach its database and Redis.
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("postgres", tags: ["ready"], timeout: TimeSpan.FromSeconds(5))
+    .AddCheck<RedisHealthCheck>("redis", tags: ["ready"], timeout: TimeSpan.FromSeconds(5));
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 // Logging sits outside the exception handler so a failed request is logged with its 500.
 // (In Development the developer exception page runs first and shows the details instead.)
-app.UseHttpLogging();
+app.UseForwardedHeaders(); // first, so everything below sees the client's address and scheme
+// Probes hit /health every few seconds; they would drown the request log.
+app.UseWhen(context => !context.Request.Path.StartsWithSegments("/health"), branch => branch.UseHttpLogging());
 app.UseExceptionHandler();
 app.UseHttpsRedirection();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") });
 
 // On in Development, and wherever Swagger:Enabled is true (the compose stack sets it; a container runs as Production).
 if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger:Enabled")) {
