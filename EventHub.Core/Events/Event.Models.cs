@@ -34,6 +34,7 @@ public class CreateEventRequest {
 
 public class UpdateEventRequest {
     public string? Title { get; set; }
+    public string? ImageUrl { get; set; }
     public string? Description { get; set; }
     public DateTime? StartsAt { get; set; }
     public string? Location { get; set; }
@@ -145,6 +146,8 @@ public class CreateEventDto
 public class UpdateEventDto {
     [MaxLength(200)]
     public string? Title { get; set; }
+
+    public string? ImageUrl { get; set; }
 
     [MaxLength(2000)]
     public string? Description { get; set; }

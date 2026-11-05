@@ -1,4 +1,5 @@
 using System.Text;
+using Amazon.S3;
 using DotNetEnv;
 using EventHub.BackgroundJobs;
 using EventHub.Core.Auth;
@@ -6,6 +7,7 @@ using EventHub.Core.Bookings;
 using EventHub.Core.Common;
 using EventHub.Core.Email;
 using EventHub.Core.Events;
+using EventHub.Core.Files;
 using EventHub.Core.Payments;
 using EventHub.Core.SavedEvents;
 using EventHub.Core.Tickets;
@@ -17,6 +19,7 @@ using EventHub.Infrastructure.Common;
 using EventHub.Infrastructure.Email;
 using EventHub.Infrastructure.Data;
 using EventHub.Infrastructure.Events;
+using EventHub.Infrastructure.Files;
 using EventHub.Infrastructure.SavedEvents;
 using EventHub.Infrastructure.Tickets;
 using EventHub.Infrastructure.Users;
@@ -83,6 +86,22 @@ else {
     // No mail server configured: emails are written to the log.
     builder.Services.AddSingleton<IEmailSender, LogEmailSender>();
 }
+
+// File storage: S3Url set -> an S3-compatible emulator (Floci); empty -> real AWS with the default credential chain.
+var s3Bucket = builder.Configuration["S3:Bucket"];
+var s3PublicBaseUrl = builder.Configuration["S3:PublicBaseUrl"];
+if (string.IsNullOrEmpty(s3Bucket) || string.IsNullOrEmpty(s3PublicBaseUrl))
+    throw new InvalidOperationException("S3__Bucket and S3__PublicBaseUrl are not configured.");
+var s3ServiceUrl = builder.Configuration["S3:ServiceUrl"];
+builder.Services.AddSingleton<IAmazonS3>(_ => string.IsNullOrEmpty(s3ServiceUrl)
+    ? new AmazonS3Client()
+    : new AmazonS3Client(new AmazonS3Config {
+        ServiceURL = s3ServiceUrl,
+        ForcePathStyle = true,
+        AuthenticationRegion = builder.Configuration["S3:Region"] ?? "us-east-1",
+    }));
+builder.Services.AddSingleton<IFileStorage>(sp => new S3FileStorage(sp.GetRequiredService<IAmazonS3>(), s3Bucket, s3PublicBaseUrl));
+builder.Services.AddSingleton<UploadService>();
 
 builder.Services.AddScoped<IPasswordResetRepository, PasswordResetRepository>();
 builder.Services.AddScoped(sp => new PasswordResetService(

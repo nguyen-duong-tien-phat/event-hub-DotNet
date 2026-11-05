@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using EventHub.Core.Common;
 using EventHub.Core.Events;
+using EventHub.Core.Files;
 using EventHub.Core.Users;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -10,7 +11,18 @@ namespace EventHub.Events;
 
 [ApiController]
 [Route("events")]
-public class EventsController(EventService eventService) : ControllerBase {
+public class EventsController(EventService eventService, UploadService uploadService) : ControllerBase {
+    /// <summary>Returns a presigned URL to PUT a poster to, and the imageUrl to send when creating the event.</summary>
+    [Authorize(Roles = "Admin, Organizer")]
+    [HttpPost("image-upload")]
+    public ActionResult<UploadDto> CreateImageUpload(UploadRequestDto dto) {
+        try {
+            return Ok(uploadService.CreateUpload(UploadKind.EventImage, dto.ContentType));
+        } catch (ArgumentException e) {
+            return BadRequest(new { message = e.Message });
+        }
+    }
+
     [HttpGet]
     public async Task<ActionResult<PagedResult<EventListItemDto>>> GetAll([FromQuery] EventQuery query) {
         if (query.From.HasValue && query.To.HasValue && query.From > query.To) {
@@ -92,6 +104,7 @@ public class EventsController(EventService eventService) : ControllerBase {
         try {
             var updated = await eventService.UpdateAsync(requestId, requestRole, id, new UpdateEventRequest {
                 Title = dto.Title,
+                ImageUrl = dto.ImageUrl,
                 Description = dto.Description,
                 StartsAt = dto.StartsAt,
                 Location = dto.Location,

@@ -1,14 +1,16 @@
 using System.Text.Json;
 using EventHub.Core.Common;
+using EventHub.Core.Files;
 using EventHub.Core.Tickets;
 using EventHub.Core.Users;
 
 namespace EventHub.Core.Events;
 
 public class EventService(
-    IEventRepository eventRepository, 
-    ITicketRepository ticketRepository, 
-    ICacheService cache) 
+    IEventRepository eventRepository,
+    ITicketRepository ticketRepository,
+    ICacheService cache,
+    UploadService uploads)
 {
     private readonly string _cacheKeyPrefix = "events:";
     
@@ -95,6 +97,7 @@ public class EventService(
             RefundPolicy = request.RefundPolicy
         };
         ValidateTimes(newEvent);
+        ValidateImageUrl(newEvent.ImageUrl);
 
         await eventRepository.AddAsync(newEvent);
         await eventRepository.SaveChangesAsync();
@@ -130,6 +133,10 @@ public class EventService(
         if (request.DoorsOpenAt is not null) existing.DoorsOpenAt = request.DoorsOpenAt;
         if (request.AgeRestriction is not null) existing.AgeRestriction = request.AgeRestriction;
         if (request.RefundPolicy is not null) existing.RefundPolicy = request.RefundPolicy;
+        if (request.ImageUrl is not null) {
+            ValidateImageUrl(request.ImageUrl);
+            existing.ImageUrl = request.ImageUrl;
+        }
         ValidateTimes(existing);
 
         eventRepository.Update(existing);
@@ -142,6 +149,13 @@ public class EventService(
 
     private static string NormalizeCategory(string? category) =>
         string.IsNullOrWhiteSpace(category) ? "Other" : category.Trim();
+
+    /// <summary>Only images uploaded through <see cref="UploadService"/> may be attached, not arbitrary URLs.</summary>
+    private void ValidateImageUrl(string imageUrl) {
+        if (!uploads.IsUploadedUrl(UploadKind.EventImage, imageUrl)) {
+            throw new ArgumentException("ImageUrl must be the fileUrl returned by POST /events/image-upload.");
+        }
+    }
 
     /// <summary>Doors open before the event starts, and it ends after it starts.</summary>
     private static void ValidateTimes(Event ev) {

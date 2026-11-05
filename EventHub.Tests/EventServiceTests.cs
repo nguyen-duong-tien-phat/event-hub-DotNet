@@ -1,5 +1,6 @@
 using EventHub.Core.Common;
 using EventHub.Core.Events;
+using EventHub.Core.Files;
 using EventHub.Core.Tickets;
 using EventHub.Core.Users;
 using Moq;
@@ -10,9 +11,14 @@ public class EventServiceTests {
     private readonly Mock<IEventRepository> _eventRepo = new();
     private readonly Mock<ITicketRepository> _ticketRepo = new();
     private readonly Mock<ICacheService> _cache = new();
+    private readonly Mock<IFileStorage> _storage = new();
 
-    private EventService CreateService() =>
-        new(_eventRepo.Object, _ticketRepo.Object, _cache.Object);
+    private const string UploadedImage = "https://files.test/events/images/a.jpg";
+
+    private EventService CreateService() {
+        _storage.Setup(s => s.PublicUrl(It.IsAny<string>())).Returns((string key) => $"https://files.test/{key}");
+        return new(_eventRepo.Object, _ticketRepo.Object, _cache.Object, new UploadService(_storage.Object));
+    }
 
     private static CreateEventRequest NewRequest(Action<CreateEventRequest>? tweak = null) {
         var request = new CreateEventRequest {
@@ -21,7 +27,7 @@ public class EventServiceTests {
             StartsAt = new DateTime(2030, 1, 1, 19, 0, 0, DateTimeKind.Utc),
             Location = "Hà Nội",
             OrganizerId = "user_1",
-            ImageUrl = "https://example.com/a.jpg",
+            ImageUrl = UploadedImage,
         };
         tweak?.Invoke(request);
         return request;
@@ -80,6 +86,52 @@ public class EventServiceTests {
 
         await Assert.ThrowsAsync<ArgumentException>(() => CreateService().CreateAsync(request));
         _eventRepo.Verify(r => r.AddAsync(It.IsAny<Event>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenImageIsNotFromOurStorage_Throws() {
+        var request = NewRequest(r => r.ImageUrl = "https://evil.test/a.jpg");
+
+        await Assert.ThrowsAsync<ArgumentException>(() => CreateService().CreateAsync(request));
+        _eventRepo.Verify(r => r.AddAsync(It.IsAny<Event>()), Times.Never);
+    }
+
+    private static Event ExistingEvent() => new() {
+        Id = "event_1", Title = "T", Description = "D", StartsAt = DateTime.UtcNow.AddDays(30),
+        Location = "L", OrganizerId = "user_1", ImageUrl = "old", Highlights = [],
+    };
+
+    [Fact]
+    public async Task UpdateAsync_WithUploadedImage_ReplacesTheImage() {
+        var existing = ExistingEvent();
+        _eventRepo.Setup(r => r.GetByIdAsync("event_1")).ReturnsAsync(existing);
+
+        await CreateService().UpdateAsync("user_1", UserRole.Organizer, "event_1",
+            new UpdateEventRequest { ImageUrl = UploadedImage });
+
+        Assert.Equal(UploadedImage, existing.ImageUrl);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithForeignImage_ThrowsAndKeepsTheOldOne() {
+        var existing = ExistingEvent();
+        _eventRepo.Setup(r => r.GetByIdAsync("event_1")).ReturnsAsync(existing);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => CreateService().UpdateAsync(
+            "user_1", UserRole.Organizer, "event_1", new UpdateEventRequest { ImageUrl = "https://evil.test/a.jpg" }));
+
+        Assert.Equal("old", existing.ImageUrl);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithoutImage_LeavesTheImageAlone() {
+        var existing = ExistingEvent();
+        _eventRepo.Setup(r => r.GetByIdAsync("event_1")).ReturnsAsync(existing);
+
+        await CreateService().UpdateAsync("user_1", UserRole.Organizer, "event_1",
+            new UpdateEventRequest { Title = "New title" });
+
+        Assert.Equal("old", existing.ImageUrl);
     }
 
     [Fact]
