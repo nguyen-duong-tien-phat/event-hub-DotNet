@@ -16,7 +16,15 @@ public class BookingExpiryJob(IServiceScopeFactory scopeFactory, ILogger<Booking
                 using var scope = scopeFactory.CreateScope();
                 var bookingService = scope.ServiceProvider.GetRequiredService<BookingService>();
 
-                await bookingService.ExpireAbandonedBookingAsync(ExpiryThreshold);
+                var result = await bookingService.ExpireAbandonedBookingAsync(ExpiryThreshold);
+                if (result.Expired > 0) logger.LogInformation("Cancelled {Count} abandoned bookings", result.Expired);
+                foreach (var failure in result.Failures) {
+                    if (failure.Step == ExpiryStep.Cancel) {
+                        logger.LogError(failure.Error, "Could not cancel abandoned booking {BookingId}; it stays Pending and is retried next run", failure.BookingId);
+                    } else {
+                        logger.LogError(failure.Error, "Booking {BookingId} was cancelled but its payment could not be stopped or refunded; check it in Stripe", failure.BookingId);
+                    }
+                }
             } catch (Exception ex) when (ex is not OperationCanceledException) {
                 // One failed run (DB down, timeout...) must not stop the job for good.
                 logger.LogError(ex, "Expiring abandoned bookings failed");

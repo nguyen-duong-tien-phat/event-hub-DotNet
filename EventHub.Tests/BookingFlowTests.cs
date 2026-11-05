@@ -325,8 +325,10 @@ public class BookingFlowTests {
             .ReturnsAsync([first, second]);
         _payment.Setup(p => p.CancelPaymentIntentAsync(It.IsAny<string>())).ReturnsAsync(true);
 
-        await CreateService().ExpireAbandonedBookingAsync(BookingService.HoldDuration);
+        var result = await CreateService().ExpireAbandonedBookingAsync(BookingService.HoldDuration);
 
+        Assert.Equal(2, result.Expired);
+        Assert.Empty(result.Failures);
         Assert.Equal(BookingStatus.Cancelled, first.Status);
         Assert.Equal(BookingStatus.Cancelled, second.Status);
         _payment.Verify(p => p.CancelPaymentIntentAsync("pi_a"), Times.Once);
@@ -343,8 +345,12 @@ public class BookingFlowTests {
         _ticketRepo.Setup(r => r.ReleaseAsync(broken.Tickets)).ThrowsAsync(new InvalidOperationException("db down"));
         _payment.Setup(p => p.CancelPaymentIntentAsync(It.IsAny<string>())).ReturnsAsync(true);
 
-        await CreateService().ExpireAbandonedBookingAsync(BookingService.HoldDuration);
+        var result = await CreateService().ExpireAbandonedBookingAsync(BookingService.HoldDuration);
 
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal((broken.Id, ExpiryStep.Cancel), (failure.BookingId, failure.Step));
+        Assert.Equal("db down", failure.Error.Message);
+        Assert.Equal(1, result.Expired); // only the healthy one
         // Its booking is still held, so a customer paying right now must not be refused.
         _payment.Verify(p => p.CancelPaymentIntentAsync("pi_a"), Times.Never);
         _unitOfWork.Verify(u => u.RollbackAsync(), Times.Once);
@@ -362,8 +368,11 @@ public class BookingFlowTests {
         _payment.Setup(p => p.CancelPaymentIntentAsync("pi_a")).ThrowsAsync(new InvalidOperationException("stripe down"));
         _payment.Setup(p => p.CancelPaymentIntentAsync("pi_b")).ReturnsAsync(true);
 
-        await CreateService().ExpireAbandonedBookingAsync(BookingService.HoldDuration);
+        var result = await CreateService().ExpireAbandonedBookingAsync(BookingService.HoldDuration);
 
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal((first.Id, ExpiryStep.StopPayment), (failure.BookingId, failure.Step));
+        Assert.Equal(2, result.Expired); // both are cancelled; only the payment of the first was left open
         Assert.Equal(BookingStatus.Cancelled, first.Status);
         Assert.Equal(BookingStatus.Cancelled, second.Status);
         _payment.Verify(p => p.CancelPaymentIntentAsync("pi_b"), Times.Once);

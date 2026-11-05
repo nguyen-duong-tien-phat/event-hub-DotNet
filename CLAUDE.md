@@ -39,7 +39,7 @@ All wiring is in `EventHub.API/Program.cs`. Several services (`TokenService`, `R
 
 - Controllers turn the errors they expect into status codes (`{ message }` bodies: 400/403/404/409/429). Anything else reaches `GlobalExceptionHandler` (`EventHub.API/Errors`): it logs the exception with method, path and request id, and answers 500 `{ message, traceId }`; the exception text never goes to the client. A client that hung up (`RequestAborted`) is logged at Information, not as an error. In Development the developer exception page runs first and shows the details.
 - `UseHttpLogging` writes one line per request (method, path, status, duration; no query string, headers or bodies). It sits outside the exception handler so a 500 is logged too. Its category is raised to Information in `appsettings.json`.
-- `EventHub.Core` has no logger: `BookingService.ExpireAbandonedBookingAsync` still swallows per-booking failures silently.
+- `EventHub.Core` has no logger. `BookingService.ExpireAbandonedBookingAsync` returns an `ExpiryResult` (how many it cancelled, and a failure per booking with the step that failed: `Cancel`, still Pending and retried next run, or `StopPayment`, cancelled but the payment may be open or paid), and `BookingExpiryJob` logs them.
 
 ### Health and proxies
 

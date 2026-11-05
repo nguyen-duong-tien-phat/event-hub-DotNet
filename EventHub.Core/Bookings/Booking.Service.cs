@@ -7,6 +7,21 @@ using EventHub.Core.Users;
 namespace EventHub.Core.Bookings;
 
 /// <summary>The same request is still being processed; the client should retry shortly.</summary>
+public enum ExpiryStep {
+    /// <summary>Cancelling the booking and giving its tickets back failed; it is still Pending.</summary>
+    Cancel,
+    /// <summary>The booking is cancelled, but cancelling or refunding its payment failed.</summary>
+    StopPayment,
+}
+
+public record ExpiryFailure(string BookingId, ExpiryStep Step, Exception Error);
+
+public class ExpiryResult {
+    /// <summary>Bookings cancelled in this run.</summary>
+    public int Expired { get; set; }
+    public List<ExpiryFailure> Failures { get; } = [];
+}
+
 public class BookingInProgressException() : Exception("This booking is still being created. Please retry in a moment.");
 
 public class BookingService (
@@ -326,9 +341,15 @@ public class BookingService (
         return booking;
     }
     
-    public async Task ExpireAbandonedBookingAsync(TimeSpan expiryThreshold) {
+    /// <summary>
+    /// Cancels the Pending bookings older than <paramref name="expiryThreshold"/> and gives their tickets back.
+    /// One booking failing never stops the others; what failed is returned, because Core has no logger and
+    /// the caller (the expiry job) is the one that reports it.
+    /// </summary>
+    public async Task<ExpiryResult> ExpireAbandonedBookingAsync(TimeSpan expiryThreshold) {
         var cutoff = DateTime.UtcNow - expiryThreshold;
         var expiredBookings = await bookingRepository.GetExpiredPendingBookingsAsync(cutoff);
+        var result = new ExpiryResult();
 
         foreach (var booking in expiredBookings) {
             await unitOfWork.BeginTransactionAsync();
@@ -339,16 +360,21 @@ public class BookingService (
                 await bookingRepository.SaveChangesAsync();
                 await unitOfWork.CommitAsync();
             }
-            catch {
+            catch (Exception ex) {
                 await unitOfWork.RollbackAsync();
+                result.Failures.Add(new ExpiryFailure(booking.Id, ExpiryStep.Cancel, ex)); // still Pending: the next run tries again
                 continue;
             }
+            result.Expired++;
             try {
                 await StopPaymentAsync(booking);
-            } catch {
+            } catch (Exception ex) {
                 // Canceled already; the next confirm or webhook refunds if it was paid.
+                result.Failures.Add(new ExpiryFailure(booking.Id, ExpiryStep.StopPayment, ex));
             }
         }
+
+        return result;
     }
     
     public async Task HandlePaymentSucceeded(string paymentIntentId) {
