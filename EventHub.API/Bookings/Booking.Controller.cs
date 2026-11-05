@@ -89,13 +89,20 @@ public class BookingsController(BookingService bookingService, IRateLimiter rate
     [Authorize(Roles = "Admin, Organizer")]
     [HttpGet("by-event/{eventId}")]
     public async Task<IActionResult> GetByEvent([FromQuery] PaginationQuery query, string eventId) {
-        var result = await bookingService.GetPagedByEventIdAsync(eventId, query.Page, query.PageSize);
-        return Ok(new PagedResult<BookingResponseDto> {
-            Items = await bookingService.ToResponsesAsync(result.Items),
-            Page = result.Page,
-            PageSize = result.PageSize,
-            TotalCount = result.TotalCount
-        });
+        var requestId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
+        var requestRole = Enum.Parse<UserRole>(User.FindFirst(ClaimTypes.Role)!.Value);
+
+        try {
+            var result = await bookingService.GetPagedByEventIdAsync(eventId, requestId, requestRole, query.Page, query.PageSize);
+            return Ok(new PagedResult<BookingResponseDto> {
+                Items = await bookingService.ToResponsesAsync(result.Items),
+                Page = result.Page,
+                PageSize = result.PageSize,
+                TotalCount = result.TotalCount
+            });
+        } catch (UnauthorizedAccessException) {
+            return Forbid();
+        }
     }
     
     /// <summary>Checks the payment with Stripe and confirms the booking if it was paid.</summary>

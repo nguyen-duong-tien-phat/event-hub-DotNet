@@ -120,7 +120,7 @@ public class EventService(
         var existing = await eventRepository.GetByIdAsync(eventId);
         if (existing == null) return null;
         
-        EnsureCanManage(requestId, requestRole, existing);
+        EventAccess.EnsureCanManage(requestId, requestRole, existing);
 
         if (request.Title is not null) existing.Title = request.Title;
         if (request.Description is not null) existing.Description = request.Description;
@@ -157,7 +157,7 @@ public class EventService(
         var existing = await eventRepository.GetByIdAsync(eventId);
         if (existing == null) return false;
 
-        EnsureCanManage(requestId, requestRole, existing);
+        EventAccess.EnsureCanManage(requestId, requestRole, existing);
         if (await bookingRepository.AnyForEventAsync(eventId)) throw new EventHasBookingsException();
 
         eventRepository.Delete(existing);
@@ -167,16 +167,6 @@ public class EventService(
         // After the commit: a failed file delete only orphans the poster, it must not undo the delete.
         await uploads.DeleteUploadedAsync(UploadKind.EventImage, existing.ImageUrl);
         return true;
-    }
-
-    /// <summary>Admins and the event's own organizer may change or delete it.</summary>
-    private static void EnsureCanManage(string requestId, UserRole requestRole, Event ev) {
-        var isOwner = requestId == ev.OrganizerId && requestRole == UserRole.Organizer;
-        var isAdmin = requestRole == UserRole.Admin;
-
-        if (!isOwner && !isAdmin) {
-            throw new UnauthorizedAccessException();
-        }
     }
 
     private static string NormalizeCategory(string? category) =>

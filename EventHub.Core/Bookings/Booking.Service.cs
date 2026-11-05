@@ -258,7 +258,16 @@ public class BookingService (
 
     public Task<List<Booking>> GetByEventIdAsync(string eventId) => bookingRepository.GetByEventIdAsync(eventId);
     
-    public async Task<PagedResult<Booking>> GetPagedByEventIdAsync(string evenId, int page, int pageSize) {
+    /// <summary>Admins see any event's bookings; an organizer only sees those of their own events.</summary>
+    /// <exception cref="UnauthorizedAccessException">The caller may not see this event's bookings.</exception>
+    public async Task<PagedResult<Booking>> GetPagedByEventIdAsync(string evenId, string userId, UserRole userRole, int page, int pageSize) {
+        if (userRole != UserRole.Admin) {
+            var ev = await eventRepository.GetByIdAsync(evenId);
+            if (userRole != UserRole.Organizer || ev == null || ev.OrganizerId != userId) {
+                throw new UnauthorizedAccessException();
+            }
+        }
+
         var (items, totalCount) = await bookingRepository.GetPagedByEventIdAsync(evenId, page, pageSize);
         return new PagedResult<Booking> {
             Items = items,

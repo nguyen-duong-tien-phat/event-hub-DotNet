@@ -1,8 +1,10 @@
 using EventHub.Core.Common;
+using EventHub.Core.Events;
+using EventHub.Core.Users;
 
 namespace EventHub.Core.Tickets;
 
-public class TicketService(ITicketRepository ticketRepository) {
+public class TicketService(ITicketRepository ticketRepository, IEventRepository eventRepository) {
     public Task<List<Ticket>> GetByEventIdAsync(string eventId) =>
         ticketRepository.GetByEventIdAsync(eventId);
 
@@ -18,7 +20,13 @@ public class TicketService(ITicketRepository ticketRepository) {
         };
     }
 
-    public async Task<Ticket> CreateAsync(CreateTicketRequest request) {
+    /// <summary>Returns null when the event does not exist.</summary>
+    /// <exception cref="UnauthorizedAccessException">The caller is neither the event's organizer nor an admin.</exception>
+    public async Task<Ticket?> CreateAsync(string requestId, UserRole requestRole, CreateTicketRequest request) {
+        var ev = await eventRepository.GetByIdAsync(request.EventId);
+        if (ev == null) return null;
+        EventAccess.EnsureCanManage(requestId, requestRole, ev);
+
         var ticket = new Ticket {
             EventId = request.EventId,
             Type = request.Type,
@@ -34,9 +42,15 @@ public class TicketService(ITicketRepository ticketRepository) {
         return ticket;
     }
 
-    public async Task<Ticket?> UpdateAsync(string id, UpdateTicketRequest request) {
+    /// <exception cref="UnauthorizedAccessException">The caller is neither the event's organizer nor an admin.</exception>
+    public async Task<Ticket?> UpdateAsync(string requestId, UserRole requestRole, string id, UpdateTicketRequest request) {
         var existing = await ticketRepository.GetByIdAsync(id);
         if (existing == null) return null;
+
+        // Tickets are deleted with their event, so a missing event means the ticket is already gone.
+        var ev = await eventRepository.GetByIdAsync(existing.EventId);
+        if (ev == null) return null;
+        EventAccess.EnsureCanManage(requestId, requestRole, ev);
 
         if (request.Type is not null) existing.Type = request.Type;
         if (request.Price is not null) existing.Price = request.Price.Value;
