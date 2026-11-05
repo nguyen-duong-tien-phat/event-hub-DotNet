@@ -124,4 +124,15 @@ public class RefreshTokenServiceTests {
 
         _tokens.Verify(r => r.TryRevokeAsync(It.IsAny<string>()), Times.Never);
     }
+
+    [Fact]
+    public async Task RefreshAsync_ForABlockedUser_ReturnsNull_AndIssuesNothing() {
+        var service = CreateService();
+        var first = await service.IssueAsync(_user);
+        _user.IsActive = false;
+
+        Assert.Null(await service.RefreshAsync(first.RefreshToken));
+
+        Assert.Single(_stored); // no new refresh token
+    }
 }

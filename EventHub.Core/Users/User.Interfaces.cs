@@ -8,4 +8,10 @@ public interface IUserRepository : IRepository<User> {
 
     /// <summary>Saves a new user. False when the email is already taken (the unique index decides, so two sign-ups at once cannot both win).</summary>
     Task<bool> TryAddAsync(User user);
+
+    /// <summary>
+    /// One page of users, newest first, optionally only those whose name or email contains <paramref name="search"/>
+    /// and only active (true) or blocked (false) accounts.
+    /// </summary>
+    Task<(List<User> Items, int TotalCount)> SearchPagedAsync(string? search, bool? isActive, int page, int pageSize);
 }

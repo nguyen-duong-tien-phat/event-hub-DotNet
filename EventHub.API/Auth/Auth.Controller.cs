@@ -31,6 +31,8 @@ public class AuthController(
 
         var user = await userService.VerifyPasswordAsync(dto.Email, dto.Password);
         if (user == null) return Unauthorized(new { message = "Invalid email or password" });
+        // Said only after the password matched, so it does not reveal which emails have accounts.
+        if (!user.IsActive) return StatusCode(403, new { message = "This account has been blocked." });
 
         return Ok(ToResponse(await refreshTokenService.IssueAsync(user)));
     }

@@ -1,3 +1,4 @@
+using EventHub.Core.Auth;
 using EventHub.Core.Users;
 using Microsoft.AspNetCore.Identity;
 using Moq;
@@ -7,7 +8,9 @@ namespace EventHub.Tests;
 public class UserServiceTests {
     private readonly Mock<IUserRepository> _userRepo = new();
 
-    private UserService CreateService() => new(_userRepo.Object, new Mock<IPasswordHasher<User>>().Object);
+    private readonly Mock<IRefreshTokenRepository> _tokens = new();
+
+    private UserService CreateService() => new(_userRepo.Object, new Mock<IPasswordHasher<User>>().Object, _tokens.Object);
 
     private User GivenUser(string id, UserRole role) {
         var user = new User { Id = id, Email = $"{id}@mail.test", FullName = id, Role = role };
@@ -77,5 +80,55 @@ public class UserServiceTests {
         Assert.Null(await CreateService().ChangeRoleAsync("admin_1", "missing", UserRole.Organizer));
 
         _userRepo.Verify(r => r.SaveChangesAsync(), Times.Never);
+    }
+
+    [Fact]
+    public async Task SetActiveAsync_Blocking_SavesWithoutRewritingTheRow_AndEndsEverySession() {
+        var user = GivenUser("user_2", UserRole.Attendee);
+
+        var result = await CreateService().SetActiveAsync("admin_1", "user_2", false);
+
+        Assert.False(result!.IsActive);
+        Assert.False(user.IsActive);
+        _userRepo.Verify(r => r.SaveChangesAsync(), Times.Once);
+        _userRepo.Verify(r => r.Update(It.IsAny<User>()), Times.Never);
+        _tokens.Verify(t => t.RevokeAllForUserAsync("user_2"), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetActiveAsync_Unblocking_LeavesTheTokensAlone() {
+        var user = GivenUser("user_2", UserRole.Attendee);
+        user.IsActive = false;
+
+        var result = await CreateService().SetActiveAsync("admin_1", "user_2", true);
+
+        Assert.True(result!.IsActive);
+        _tokens.Verify(t => t.RevokeAllForUserAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SetActiveAsync_AnAdminBlockingThemselves_IsRefusedAndNothingChanges() {
+        var admin = GivenUser("admin_1", UserRole.Admin);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => CreateService().SetActiveAsync("admin_1", "admin_1", false));
+
+        Assert.True(admin.IsActive);
+        _userRepo.Verify(r => r.SaveChangesAsync(), Times.Never);
+    }
+
+    [Fact]
+    public async Task SetActiveAsync_ForAUserThatDoesNotExist_ReturnsNull() {
+        Assert.Null(await CreateService().SetActiveAsync("admin_1", "missing", false));
+
+        _tokens.Verify(t => t.RevokeAllForUserAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetPagedAsync_PassesTheSearchAndTheActiveFilterToTheRepository() {
+        _userRepo.Setup(r => r.SearchPagedAsync("an", false, 2, 5)).ReturnsAsync(([], 0));
+
+        await CreateService().GetPagedAsync(2, 5, "an", isActive: false);
+
+        _userRepo.Verify(r => r.SearchPagedAsync("an", false, 2, 5), Times.Once);
     }
 }

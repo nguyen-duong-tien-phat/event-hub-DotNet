@@ -18,6 +18,20 @@ public class UpdateUserRoleDto {
     public UserRole? Role { get; set; }
 }
 
+public class UpdateUserActiveDto {
+    /// <summary>Nullable and required on purpose: a missing value would otherwise become false, which blocks the account.</summary>
+    [Required]
+    public bool? IsActive { get; set; }
+}
+
+public class UserQuery : EventHub.Core.Common.PaginationQuery {
+    /// <summary>Part of the name or the email, any letter case.</summary>
+    public string? Search { get; set; }
+
+    /// <summary>true: only active accounts; false: only blocked ones; left out: both.</summary>
+    public bool? IsActive { get; set; }
+}
+
 public class CreateUserDto {
     [Required, EmailAddress]
     public string Email { get; set; } = string.Empty;
@@ -34,6 +48,7 @@ public class UserResponseDto {
     public string Email { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     
@@ -42,6 +57,7 @@ public class UserResponseDto {
         Email = user.Email,
         FullName = user.FullName,
         Role = user.Role.ToString(),
+        IsActive = user.IsActive,
         CreatedAt = user.CreatedAt,
         UpdatedAt = user.UpdatedAt
     };

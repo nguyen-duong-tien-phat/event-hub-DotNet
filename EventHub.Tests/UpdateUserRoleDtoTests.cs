@@ -46,4 +46,23 @@ public class UpdateUserRoleDtoTests {
         Assert.False(accepted);
         Assert.NotEqual(UserRole.Admin, role);
     }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("""{"isActive":null}""")]
+    public void TheActiveFlagMissing_IsRefused_SoItCanNeverBlockAnAccountByDefault(string json) {
+        var dto = JsonSerializer.Deserialize<UpdateUserActiveDto>(json, Web)!;
+
+        Assert.False(Validator.TryValidateObject(dto, new ValidationContext(dto), [], validateAllProperties: true));
+    }
+
+    [Theory]
+    [InlineData("""{"isActive":false}""", false)]
+    [InlineData("""{"isActive":true}""", true)]
+    public void TheActiveFlag_IsAccepted(string json, bool expected) {
+        var dto = JsonSerializer.Deserialize<UpdateUserActiveDto>(json, Web)!;
+
+        Assert.True(Validator.TryValidateObject(dto, new ValidationContext(dto), [], validateAllProperties: true));
+        Assert.Equal(expected, dto.IsActive);
+    }
 }

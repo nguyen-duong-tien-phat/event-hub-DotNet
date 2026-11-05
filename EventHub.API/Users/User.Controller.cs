@@ -11,8 +11,8 @@ namespace EventHub.Users;
 [Authorize(Roles = "Admin")]
 public class UsersController(UserService userService): ControllerBase {
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] PaginationQuery query) {
-        var result = await userService.GetPagedAsync(query.Page, query.PageSize); 
+    public async Task<IActionResult> GetAll([FromQuery] UserQuery query) {
+        var result = await userService.GetPagedAsync(query.Page, query.PageSize, query.Search, query.IsActive);
         var response = result.Map(UserResponseDto.FromEntity);
         return Ok(response);
     }
@@ -44,6 +44,19 @@ public class UsersController(UserService userService): ControllerBase {
 
         try {
             var user = await userService.ChangeRoleAsync(requestId, id, dto.Role!.Value);
+            return user == null ? NotFound() : Ok(UserResponseDto.FromEntity(user));
+        } catch (UnauthorizedAccessException e) {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = e.Message });
+        }
+    }
+
+    /// <summary>Blocks (false) or unblocks (true) an account. Blocked users cannot sign in or refresh.</summary>
+    [HttpPatch("{id}/active")]
+    public async Task<ActionResult<UserResponseDto>> SetActive(string id, UpdateUserActiveDto dto) {
+        var requestId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
+
+        try {
+            var user = await userService.SetActiveAsync(requestId, id, dto.IsActive!.Value);
             return user == null ? NotFound() : Ok(UserResponseDto.FromEntity(user));
         } catch (UnauthorizedAccessException e) {
             return StatusCode(StatusCodes.Status403Forbidden, new { message = e.Message });

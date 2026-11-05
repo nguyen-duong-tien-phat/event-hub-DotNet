@@ -48,7 +48,7 @@ public class RefreshTokenService(
         if (stored.ExpiresAt <= DateTime.UtcNow) return null;
 
         var user = await users.GetByIdAsync(stored.UserId);
-        if (user == null) return null;
+        if (user == null || !user.IsActive) return null;
 
         // Two requests with the same token can both get here; only one wins the revoke.
         if (!await refreshTokens.TryRevokeAsync(stored.Id)) {

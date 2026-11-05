@@ -24,7 +24,7 @@ public class AuthControllerTest {
         
         var userRepo =  new Mock<IUserRepository>();
         var passwordHasher = new Mock<IPasswordHasher<User>>();
-        var userService = new UserService(userRepo.Object, passwordHasher.Object);
+        var userService = new UserService(userRepo.Object, passwordHasher.Object, new Mock<IRefreshTokenRepository>().Object);
         var tokenService = new TokenService("dev-secret-key-at-least-32-characters-long", "EventHub", "EventHubUsers", 15);
         var refreshTokens = new RefreshTokenService(
             new Mock<IRefreshTokenRepository>().Object, userRepo.Object, tokenService, TimeSpan.FromDays(30));
@@ -47,7 +47,7 @@ public class AuthControllerTest {
 
     private static AuthController CreateController(
         Mock<IRateLimiter> rateLimiter, Mock<IUserRepository> userRepo) {
-        var userService = new UserService(userRepo.Object, new Mock<IPasswordHasher<User>>().Object);
+        var userService = new UserService(userRepo.Object, new Mock<IPasswordHasher<User>>().Object, new Mock<IRefreshTokenRepository>().Object);
         var tokenService = new TokenService("dev-secret-key-at-least-32-characters-long", "EventHub", "EventHubUsers", 15);
         var refreshTokens = new RefreshTokenService(
             new Mock<IRefreshTokenRepository>().Object, userRepo.Object, tokenService, TimeSpan.FromDays(30));
@@ -101,5 +101,30 @@ public class AuthControllerTest {
 
         Assert.Equal(429, Assert.IsType<ObjectResult>(result).StatusCode);
         userRepo.Verify(r => r.AddAsync(It.IsAny<User>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Login_ForABlockedAccount_Returns403_OnlyAfterTheCorrectPassword() {
+        var rateLimiter = new Mock<IRateLimiter>();
+        rateLimiter.Setup(r => r.IsAllowedAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<TimeSpan>())).ReturnsAsync(true);
+        var blocked = new User { Email = "b@test.com", FullName = "B", IsActive = false };
+        var userRepo = new Mock<IUserRepository>();
+        userRepo.Setup(r => r.GetByEmailAsync("b@test.com")).ReturnsAsync(blocked);
+        var hasher = new Mock<IPasswordHasher<User>>();
+        hasher.Setup(h => h.VerifyHashedPassword(blocked, It.IsAny<string>(), "right")).Returns(PasswordVerificationResult.Success);
+        hasher.Setup(h => h.VerifyHashedPassword(blocked, It.IsAny<string>(), "wrong")).Returns(PasswordVerificationResult.Failed);
+        var tokenService = new TokenService("dev-secret-key-at-least-32-characters-long", "EventHub", "EventHubUsers", 15);
+        var controller = new AuthController(
+            new UserService(userRepo.Object, hasher.Object, new Mock<IRefreshTokenRepository>().Object),
+            new RefreshTokenService(new Mock<IRefreshTokenRepository>().Object, userRepo.Object, tokenService, TimeSpan.FromDays(30)),
+            NoResetService(userRepo), rateLimiter.Object) {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+        };
+
+        var right = await controller.Login(new LoginDto { Email = "b@test.com", Password = "right" });
+        var wrong = await controller.Login(new LoginDto { Email = "b@test.com", Password = "wrong" });
+
+        Assert.Equal(403, Assert.IsType<ObjectResult>(right).StatusCode);
+        Assert.IsType<UnauthorizedObjectResult>(wrong); // a wrong password learns nothing about the block
     }
 }

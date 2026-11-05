@@ -1,3 +1,4 @@
+using EventHub.Core.Auth;
 using EventHub.Core.Common;
 using Microsoft.AspNetCore.Identity;
 
@@ -7,10 +8,11 @@ public class EmailTakenException() : Exception("An account with this email alrea
 
 public class UserService(
     IUserRepository userRepository, 
-    IPasswordHasher<User> passwordHasher) 
+    IPasswordHasher<User> passwordHasher,
+    IRefreshTokenRepository refreshTokens) 
 {
-    public async Task<PagedResult<User>> GetPagedAsync(int page, int pageSize) {
-        var (items, totalCount) = await userRepository.GetPagedAsync(page, pageSize);
+    public async Task<PagedResult<User>> GetPagedAsync(int page, int pageSize, string? search = null, bool? isActive = null) {
+        var (items, totalCount) = await userRepository.SearchPagedAsync(search, isActive, page, pageSize);
         return new PagedResult<User> {
             Items = items,
             Page = page,
@@ -50,6 +52,25 @@ public class UserService(
         // No Update() call: EF then writes only the Role column, not a possibly stale password hash.
         user.Role = role;
         await userRepository.SaveChangesAsync();
+        return user;
+    }
+
+    /// <summary>
+    /// Blocks or unblocks an account. Blocking ends every session (refresh tokens), but an access token
+    /// already issued keeps working until it expires (up to its lifetime). An admin cannot block themselves.
+    /// </summary>
+    /// <exception cref="UnauthorizedAccessException">The caller tried to block their own account.</exception>
+    public async Task<User?> SetActiveAsync(string requestId, string userId, bool isActive) {
+        if (requestId == userId && !isActive) {
+            throw new UnauthorizedAccessException("You cannot block your own account.");
+        }
+
+        var user = await userRepository.GetByIdAsync(userId);
+        if (user == null) return null;
+
+        user.IsActive = isActive; // no Update(): only this column is written, never a stale password hash
+        await userRepository.SaveChangesAsync();
+        if (!isActive) await refreshTokens.RevokeAllForUserAsync(userId);
         return user;
     }
 
