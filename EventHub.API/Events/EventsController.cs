@@ -96,6 +96,21 @@ public class EventsController(EventService eventService, UploadService uploadSer
     }
 
     [Authorize(Roles = "Admin, Organizer")]
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(string id) {
+        var requestId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
+        var requestRole = Enum.Parse<UserRole>(User.FindFirst(ClaimTypes.Role)!.Value);
+
+        try {
+            return await eventService.DeleteAsync(requestId, requestRole, id) ? NoContent() : NotFound();
+        } catch (UnauthorizedAccessException) {
+            return Forbid();
+        } catch (EventHasBookingsException e) {
+            return Conflict(new { message = e.Message });
+        }
+    }
+
+    [Authorize(Roles = "Admin, Organizer")]
     [HttpPatch("{id}")]
     public async Task<IActionResult> Update(string id, UpdateEventDto dto) {
         var requestId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;

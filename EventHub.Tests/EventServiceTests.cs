@@ -1,3 +1,4 @@
+using EventHub.Core.Bookings;
 using EventHub.Core.Common;
 using EventHub.Core.Events;
 using EventHub.Core.Files;
@@ -11,13 +12,14 @@ public class EventServiceTests {
     private readonly Mock<IEventRepository> _eventRepo = new();
     private readonly Mock<ITicketRepository> _ticketRepo = new();
     private readonly Mock<ICacheService> _cache = new();
+    private readonly Mock<IBookingRepository> _bookingRepo = new();
     private readonly Mock<IFileStorage> _storage = new();
 
     private const string UploadedImage = "https://files.test/events/images/a.jpg";
 
     private EventService CreateService() {
         _storage.Setup(s => s.PublicUrl(It.IsAny<string>())).Returns((string key) => $"https://files.test/{key}");
-        return new(_eventRepo.Object, _ticketRepo.Object, _cache.Object, new UploadService(_storage.Object));
+        return new(_eventRepo.Object, _ticketRepo.Object, _bookingRepo.Object, _cache.Object, new UploadService(_storage.Object));
     }
 
     private static CreateEventRequest NewRequest(Action<CreateEventRequest>? tweak = null) {
@@ -132,6 +134,70 @@ public class EventServiceTests {
             new UpdateEventRequest { Title = "New title" });
 
         Assert.Equal("old", existing.ImageUrl);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ByTheOrganizer_DeletesTheEventAndItsPoster() {
+        var existing = ExistingEvent();
+        existing.ImageUrl = UploadedImage;
+        _eventRepo.Setup(r => r.GetByIdAsync("event_1")).ReturnsAsync(existing);
+
+        var deleted = await CreateService().DeleteAsync("user_1", UserRole.Organizer, "event_1");
+
+        Assert.True(deleted);
+        _eventRepo.Verify(r => r.Delete(existing), Times.Once);
+        _eventRepo.Verify(r => r.SaveChangesAsync(), Times.Once);
+        _cache.Verify(c => c.RemoveByPrefixAsync("events:"), Times.Once);
+        _storage.Verify(s => s.DeleteAsync("events/images/a.jpg"), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ByAnAdmin_Deletes() {
+        _eventRepo.Setup(r => r.GetByIdAsync("event_1")).ReturnsAsync(ExistingEvent());
+
+        Assert.True(await CreateService().DeleteAsync("someone_else", UserRole.Admin, "event_1"));
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ByAnotherOrganizer_ThrowsBeforeTouchingAnything() {
+        _eventRepo.Setup(r => r.GetByIdAsync("event_1")).ReturnsAsync(ExistingEvent());
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => CreateService().DeleteAsync("other_org", UserRole.Organizer, "event_1"));
+
+        _bookingRepo.Verify(r => r.AnyForEventAsync(It.IsAny<string>()), Times.Never);
+        _eventRepo.Verify(r => r.Delete(It.IsAny<Event>()), Times.Never);
+        _storage.Verify(s => s.DeleteAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WhenTheEventHasBookings_ThrowsAndKeepsEverything() {
+        var existing = ExistingEvent();
+        existing.ImageUrl = UploadedImage;
+        _eventRepo.Setup(r => r.GetByIdAsync("event_1")).ReturnsAsync(existing);
+        _bookingRepo.Setup(r => r.AnyForEventAsync("event_1")).ReturnsAsync(true);
+
+        await Assert.ThrowsAsync<EventHasBookingsException>(
+            () => CreateService().DeleteAsync("user_1", UserRole.Organizer, "event_1"));
+
+        _eventRepo.Verify(r => r.Delete(It.IsAny<Event>()), Times.Never);
+        _storage.Verify(s => s.DeleteAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WhenTheEventDoesNotExist_ReturnsFalse() {
+        Assert.False(await CreateService().DeleteAsync("user_1", UserRole.Organizer, "missing"));
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WithAnImageWeDidNotUpload_LeavesTheFileAlone() {
+        var existing = ExistingEvent(); // ImageUrl = "old", not under our storage
+        _eventRepo.Setup(r => r.GetByIdAsync("event_1")).ReturnsAsync(existing);
+
+        await CreateService().DeleteAsync("user_1", UserRole.Organizer, "event_1");
+
+        _eventRepo.Verify(r => r.Delete(existing), Times.Once);
+        _storage.Verify(s => s.DeleteAsync(It.IsAny<string>()), Times.Never);
     }
 
     [Fact]

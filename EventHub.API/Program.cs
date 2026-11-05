@@ -100,7 +100,8 @@ builder.Services.AddSingleton<IAmazonS3>(_ => string.IsNullOrEmpty(s3ServiceUrl)
         ForcePathStyle = true,
         AuthenticationRegion = builder.Configuration["S3:Region"] ?? "us-east-1",
     }));
-builder.Services.AddSingleton<IFileStorage>(sp => new S3FileStorage(sp.GetRequiredService<IAmazonS3>(), s3Bucket, s3PublicBaseUrl));
+builder.Services.AddSingleton<IFileStorage>(sp => new S3FileStorage(
+    sp.GetRequiredService<IAmazonS3>(), s3Bucket, s3PublicBaseUrl, sp.GetRequiredService<ILogger<S3FileStorage>>()));
 builder.Services.AddSingleton<UploadService>();
 
 builder.Services.AddScoped<IPasswordResetRepository, PasswordResetRepository>();

@@ -37,6 +37,22 @@ public class UploadServiceTests {
     }
 
     [Fact]
+    public async Task DeleteUploadedAsync_DeletesByKey_ForOurOwnUrl() {
+        await CreateService().DeleteUploadedAsync(UploadKind.EventImage, "public://events/images/abc.png");
+
+        _storage.Verify(s => s.DeleteAsync("events/images/abc.png"), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("https://example.com/cat.jpg")]
+    [InlineData("public://users/avatars/abc.jpg")] // ours, but the wrong kind
+    public async Task DeleteUploadedAsync_IgnoresEverythingElse(string url) {
+        await CreateService().DeleteUploadedAsync(UploadKind.EventImage, url);
+
+        _storage.Verify(s => s.DeleteAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
     public void CreateUpload_GivesEachFileItsOwnKey() {
         var service = CreateService();
 

@@ -30,6 +30,10 @@ public class UploadService(IFileStorage storage) {
     public bool IsUploadedUrl(UploadKind kind, string url) =>
         url.StartsWith(storage.PublicUrl(Rules[kind].Folder + "/"), StringComparison.Ordinal);
 
+    /// <summary>Deletes a file we uploaded. Any other URL (seed data, external links) is left alone.</summary>
+    public Task DeleteUploadedAsync(UploadKind kind, string url) =>
+        IsUploadedUrl(kind, url) ? storage.DeleteAsync(url[storage.PublicUrl("").Length..]) : Task.CompletedTask;
+
     /// <exception cref="ArgumentException">The content type is not allowed for this kind.</exception>
     public UploadDto CreateUpload(UploadKind kind, string contentType) {
         var (folder, types) = Rules[kind];

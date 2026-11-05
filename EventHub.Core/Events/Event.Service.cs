@@ -1,4 +1,5 @@
 using System.Text.Json;
+using EventHub.Core.Bookings;
 using EventHub.Core.Common;
 using EventHub.Core.Files;
 using EventHub.Core.Tickets;
@@ -6,9 +7,12 @@ using EventHub.Core.Users;
 
 namespace EventHub.Core.Events;
 
+public class EventHasBookingsException() : Exception("This event already has bookings and cannot be deleted.");
+
 public class EventService(
     IEventRepository eventRepository,
     ITicketRepository ticketRepository,
+    IBookingRepository bookingRepository,
     ICacheService cache,
     UploadService uploads)
 {
@@ -116,13 +120,7 @@ public class EventService(
         var existing = await eventRepository.GetByIdAsync(eventId);
         if (existing == null) return null;
         
-        // Admin and event organizer can update the event
-        var isOwner = requestId == existing.OrganizerId && requestRole == UserRole.Organizer;
-        var isAdmin = requestRole == UserRole.Admin;
-
-        if (!isOwner && !isAdmin) {
-            throw new UnauthorizedAccessException();
-        }
+        EnsureCanManage(requestId, requestRole, existing);
 
         if (request.Title is not null) existing.Title = request.Title;
         if (request.Description is not null) existing.Description = request.Description;
@@ -145,6 +143,40 @@ public class EventService(
         await cache.RemoveByPrefixAsync(_cacheKeyPrefix);
         
         return existing;
+    }
+
+    /// <summary>
+    /// Deletes an event and its poster. Returns false when the event does not exist.
+    /// Checks the caller first, then refuses if anyone has booked: <c>Booking.EventId</c> has no foreign key,
+    /// so deleting would silently leave paid bookings pointing at nothing.
+    /// shortcut: a booking made between the check and the delete is not caught; wrap in a transaction if that matters.
+    /// </summary>
+    /// <exception cref="UnauthorizedAccessException">The caller is neither the organizer nor an admin.</exception>
+    /// <exception cref="EventHasBookingsException">The event has bookings.</exception>
+    public async Task<bool> DeleteAsync(string requestId, UserRole requestRole, string eventId) {
+        var existing = await eventRepository.GetByIdAsync(eventId);
+        if (existing == null) return false;
+
+        EnsureCanManage(requestId, requestRole, existing);
+        if (await bookingRepository.AnyForEventAsync(eventId)) throw new EventHasBookingsException();
+
+        eventRepository.Delete(existing);
+        await eventRepository.SaveChangesAsync();
+        await cache.RemoveByPrefixAsync(_cacheKeyPrefix);
+
+        // After the commit: a failed file delete only orphans the poster, it must not undo the delete.
+        await uploads.DeleteUploadedAsync(UploadKind.EventImage, existing.ImageUrl);
+        return true;
+    }
+
+    /// <summary>Admins and the event's own organizer may change or delete it.</summary>
+    private static void EnsureCanManage(string requestId, UserRole requestRole, Event ev) {
+        var isOwner = requestId == ev.OrganizerId && requestRole == UserRole.Organizer;
+        var isAdmin = requestRole == UserRole.Admin;
+
+        if (!isOwner && !isAdmin) {
+            throw new UnauthorizedAccessException();
+        }
     }
 
     private static string NormalizeCategory(string? category) =>

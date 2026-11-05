@@ -21,6 +21,9 @@ public class BookingRepository(AppDbContext db) : Repository<Booking>(db), IBook
         return (items, totalCount);
     }
 
+    public async Task<bool> AnyForEventAsync(string eventId) =>
+        await DbSet.AnyAsync(b => b.EventId == eventId);
+
     public async Task<List<Booking>> GetByEventIdAsync(string eventId) =>
         await DbSet
             .Where(b => b.EventId == eventId)

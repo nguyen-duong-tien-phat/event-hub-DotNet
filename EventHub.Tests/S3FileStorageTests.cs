@@ -1,6 +1,8 @@
 using Amazon.Runtime;
 using Amazon.S3;
 using EventHub.Infrastructure.Files;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 
 namespace EventHub.Tests;
 
@@ -9,7 +11,29 @@ public class S3FileStorageTests {
         var config = new AmazonS3Config { ForcePathStyle = true, AuthenticationRegion = "us-east-1" };
         if (serviceUrl is not null) config.ServiceURL = serviceUrl;
         else config.RegionEndpoint = Amazon.RegionEndpoint.USEast1;
-        return new S3FileStorage(new AmazonS3Client(new BasicAWSCredentials("test", "test"), config), "bucket", "http://files.test/bucket");
+        return new S3FileStorage(new AmazonS3Client(new BasicAWSCredentials("test", "test"), config), "bucket", "http://files.test/bucket",
+            NullLogger<S3FileStorage>.Instance);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_DeletesTheObjectFromTheBucket() {
+        var s3 = new Mock<IAmazonS3>();
+
+        await new S3FileStorage(s3.Object, "bucket", "http://files.test/bucket", NullLogger<S3FileStorage>.Instance)
+            .DeleteAsync("events/images/a.png");
+
+        s3.Verify(c => c.DeleteObjectAsync("bucket", "events/images/a.png", default), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WhenS3Fails_DoesNotThrow() {
+        var s3 = new Mock<IAmazonS3>();
+        s3.Setup(c => c.DeleteObjectAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new AmazonClientException("down"));
+
+        var storage = new S3FileStorage(s3.Object, "bucket", "http://files.test/bucket", NullLogger<S3FileStorage>.Instance);
+
+        await storage.DeleteAsync("events/images/a.png"); // the caller already committed; an orphan beats a 500
     }
 
     [Fact]
