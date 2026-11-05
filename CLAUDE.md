@@ -62,6 +62,9 @@ Confirmed bookings expose one HMAC-signed code per admitted person (`TicketCodeS
 - `ExpiredCredentialsCleanupJob` hourly deletes expired refresh tokens and reset codes via `ExpiredCredentialsCleaner`.
 - Roles: Attendee / Organizer / Admin. `EventAccess.EnsureCanManage` (Core/Events) is the one rule for "an admin, or the event's own organizer"; events, tickets and an event's booking list all use it. Services throw `UnauthorizedAccessException` and controllers answer 403. An attendee sees only their own bookings.
 - `PATCH /users/{id}/role` (Admin) sets any role; an admin cannot lower their own, so one admin always remains. The role is baked into the access token, so a change reaches the user when the token is next refreshed.
+- `PATCH /users/{id}/active` (Admin) blocks or unblocks an account (`User.IsActive`); an admin cannot block themselves. Blocking revokes the refresh tokens, login answers 403 (after a correct password) and refresh answers 401, but an access token already issued works until it expires. `GET /users` takes `search` (name or email) and `isActive`.
+- `PATCH /bookings/{id}/cancel`: the buyer, an admin (any booking) or the event's organizer (`EventAccess.EnsureCanManage`). A paid booking is refunded.
+- `GET /events/{id}/stats` (organizer or admin): bookings by status, ticket revenue (without the service fee), fees, tickets sold (confirmed bookings), held (in stock taken by pending bookings), check-ins. `GET /events` takes `sort` (`StartsAt`, `StartsAtDesc`, `Newest`) and `PATCH /events/{id}` takes `highlights`.
 
 ### Event images (S3)
 
