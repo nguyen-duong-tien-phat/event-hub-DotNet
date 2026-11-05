@@ -34,6 +34,7 @@ public class BookingRepository(AppDbContext db) : Repository<Booking>(db), IBook
 
         var totalCount = await query.CountAsync();
         var items = await query
+            .Include(b => b.User) // the organizer's list shows who bought; one JOIN, not a query per booking
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();

@@ -51,6 +51,29 @@ public class BookingByEventTests {
     }
 
     [Fact]
+    public async Task TheResponse_ShowsTheBuyer_WhenTheBookingHasItsUserLoaded() {
+        var booking = new Booking {
+            EventId = "event_1", UserId = "user_9",
+            User = new User { Id = "user_9", Email = "an@mail.test", FullName = "An Nguyen" },
+        };
+
+        var response = (await CreateService().ToResponsesAsync([booking])).Single();
+
+        Assert.Equal("user_9", response.Buyer!.Id);
+        Assert.Equal("An Nguyen", response.Buyer.FullName);
+        Assert.Equal("an@mail.test", response.Buyer.Email);
+    }
+
+    [Fact]
+    public async Task TheResponse_HasNoBuyer_WhenTheUserWasNotLoaded() {
+        var booking = new Booking { EventId = "event_1", UserId = "user_9" };
+
+        var response = (await CreateService().ToResponsesAsync([booking])).Single();
+
+        Assert.Null(response.Buyer);
+    }
+
+    [Fact]
     public async Task AnOrganizer_AskingAboutAnEventThatDoesNotExist_IsRefused() {
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
             () => CreateService().GetPagedByEventIdAsync("missing", "org_1", UserRole.Organizer, 1, 10));

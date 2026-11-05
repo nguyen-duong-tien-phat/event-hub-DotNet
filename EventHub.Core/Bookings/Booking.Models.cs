@@ -49,6 +49,12 @@ public class BookingTicketItemDto {
     public decimal UnitPrice { get; set; }
 }
 
+public class BookingBuyerDto {
+    public required string Id { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+}
+
 public class BookingResponseDto {
     public required string Id { get; set; }
     public required string EventId { get; set; }
@@ -60,6 +66,10 @@ public class BookingResponseDto {
     public decimal TotalPrice { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
+
+    /// <summary>Who booked. Only filled where the buyer was loaded: the organizer's list of an event's bookings.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BookingBuyerDto? Buyer { get; set; }
 
     /// <summary>While the booking is pending, the tickets are held until this time.</summary>
     public DateTime ExpiresAt { get; set; }

@@ -187,6 +187,11 @@ public class BookingService (
         TotalPrice = booking.TotalPrice,
         Status = booking.Status.ToString(),
         CreatedAt = booking.CreatedAt,
+        Buyer = booking.User == null ? null : new BookingBuyerDto {
+            Id = booking.User.Id,
+            FullName = booking.User.FullName,
+            Email = booking.User.Email,
+        },
         ExpiresAt = booking.CreatedAt + HoldDuration,
         ClientSecret = string.IsNullOrEmpty(clientSecret) ? null : clientSecret,
         TicketCodes = TicketCodesFor(booking),
