@@ -107,13 +107,17 @@ public class AuthController(
             return StatusCode(429, new { message = "Too many sign-ups. Try again later." });
         }
 
-        await userService.CreateAsync(new CreateUserRequest {
-            Email = dto.Email,
-            FullName = dto.FullName,
-            Password = dto.Password,
-            Role = UserRole.Attendee
-        });
-        
+        try {
+            await userService.CreateAsync(new CreateUserRequest {
+                Email = dto.Email,
+                FullName = dto.FullName,
+                Password = dto.Password,
+                Role = UserRole.Attendee
+            });
+        } catch (EmailTakenException e) {
+            return Conflict(new { message = e.Message });
+        }
+
         return Ok();
     }
 

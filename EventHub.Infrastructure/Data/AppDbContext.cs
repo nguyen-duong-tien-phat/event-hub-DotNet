@@ -62,6 +62,25 @@ public class AppDbContext(DbContextOptions<AppDbContext> options): DbContext(opt
             .HasIndex(b => new { b.UserId, b.IdempotencyKey })
             .IsUnique()
             .HasFilter("\"IdempotencyKey\" IS NOT NULL");
+
+        // Bookings are looked up by event (an organizer's list, the delete check), by user ("my bookings"),
+        // by Stripe payment intent (every webhook) and by status (the expiry job, every minute).
+        modelBuilder.Entity<Booking>().HasIndex(b => new { b.EventId, b.CreatedAt });
+        modelBuilder.Entity<Booking>().HasIndex(b => new { b.UserId, b.CreatedAt });
+        modelBuilder.Entity<Booking>()
+            .HasIndex(b => b.PaymentIntentId)
+            .IsUnique()
+            .HasFilter("\"PaymentIntentId\" IS NOT NULL");
+        modelBuilder.Entity<Booking>()
+            .HasIndex(b => b.CreatedAt)
+            .HasDatabaseName("IX_Bookings_Pending_CreatedAt")
+            .HasFilter("\"Status\" = 'Pending'"); // tiny: only bookings still waiting for payment
+
+        // Emails are stored lower case (UserService), so a plain unique index is case-insensitive in effect.
+        modelBuilder.Entity<User>().HasIndex(u => u.Email).IsUnique();
+
+        // The event lists sort and filter by start time.
+        modelBuilder.Entity<Event>().HasIndex(e => e.StartsAt);
         
         modelBuilder.Entity<RefreshToken>().Property(t => t.Id).ValueGeneratedNever();
         modelBuilder.Entity<RefreshToken>().HasIndex(t => t.TokenHash).IsUnique();

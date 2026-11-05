@@ -135,6 +135,18 @@ namespace EventHub.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_Bookings_Pending_CreatedAt")
+                        .HasFilter("\"Status\" = 'Pending'");
+
+                    b.HasIndex("PaymentIntentId")
+                        .IsUnique()
+                        .HasFilter("\"PaymentIntentId\" IS NOT NULL");
+
+                    b.HasIndex("EventId", "CreatedAt");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
                     b.HasIndex("UserId", "IdempotencyKey")
                         .IsUnique()
                         .HasFilter("\"IdempotencyKey\" IS NOT NULL");
@@ -231,6 +243,8 @@ namespace EventHub.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("OrganizerId");
+
+                    b.HasIndex("StartsAt");
 
                     b.ToTable("Events");
                 });
@@ -336,6 +350,9 @@ namespace EventHub.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
 
                     b.ToTable("Users");
                 });

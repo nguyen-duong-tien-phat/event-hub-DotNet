@@ -77,6 +77,19 @@ public class AuthControllerTest {
     }
 
     [Fact]
+    public async Task Register_WhenTheEmailIsTaken_Returns409() {
+        var rateLimiter = new Mock<IRateLimiter>();
+        rateLimiter.Setup(r => r.IsAllowedAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<TimeSpan>())).ReturnsAsync(true);
+        var userRepo = new Mock<IUserRepository>();
+        userRepo.Setup(r => r.TryAddAsync(It.IsAny<User>())).ReturnsAsync(false);
+
+        var result = await CreateController(rateLimiter, userRepo)
+            .Register(new RegisterDto { Email = "taken@test.com", FullName = "A", Password = "password123" });
+
+        Assert.IsType<ConflictObjectResult>(result);
+    }
+
+    [Fact]
     public async Task Register_WhenRateLimited_Returns429AndCreatesNoUser() {
         var rateLimiter = new Mock<IRateLimiter>();
         rateLimiter.Setup(r => r.IsAllowedAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<TimeSpan>()))

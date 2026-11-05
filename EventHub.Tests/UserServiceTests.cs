@@ -15,6 +15,26 @@ public class UserServiceTests {
         return user;
     }
 
+    private static CreateUserRequest SignUp(string email = "An@Mail.Test") =>
+        new() { Email = email, FullName = "An", Password = "password123", Role = UserRole.Attendee };
+
+    [Fact]
+    public async Task CreateAsync_StoresTheEmailTrimmedAndInLowerCase() {
+        _userRepo.Setup(r => r.TryAddAsync(It.IsAny<User>())).ReturnsAsync(true);
+
+        var user = await CreateService().CreateAsync(SignUp("  An@Mail.Test "));
+
+        Assert.Equal("an@mail.test", user.Email);
+        _userRepo.Verify(r => r.TryAddAsync(It.Is<User>(u => u.Email == "an@mail.test")), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenTheEmailIsAlreadyTaken_Throws() {
+        _userRepo.Setup(r => r.TryAddAsync(It.IsAny<User>())).ReturnsAsync(false);
+
+        await Assert.ThrowsAsync<EmailTakenException>(() => CreateService().CreateAsync(SignUp()));
+    }
+
     [Theory]
     [InlineData(UserRole.Organizer)]
     [InlineData(UserRole.Admin)]

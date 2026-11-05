@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Identity;
 
 namespace EventHub.Core.Users;
 
+public class EmailTakenException() : Exception("An account with this email already exists.");
+
 public class UserService(
     IUserRepository userRepository, 
     IPasswordHasher<User> passwordHasher) 
@@ -19,16 +21,16 @@ public class UserService(
 
     public Task<User?> GetByIdAsync(string id) => userRepository.GetByIdAsync(id);
 
+    /// <exception cref="EmailTakenException">Another account already uses this email.</exception>
     public async Task<User> CreateAsync(CreateUserRequest request) {
         var user = new User {
-            Email = request.Email,
+            Email = request.Email.Trim().ToLowerInvariant(), // one spelling per address, so the unique index means what it says
             FullName = request.FullName,
             Role = request.Role ?? UserRole.Attendee
         };
         user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
 
-        await userRepository.AddAsync(user);
-        await userRepository.SaveChangesAsync();
+        if (!await userRepository.TryAddAsync(user)) throw new EmailTakenException();
         return user;
     }
     

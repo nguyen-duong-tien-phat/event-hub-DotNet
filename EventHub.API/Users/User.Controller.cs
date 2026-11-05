@@ -26,12 +26,16 @@ public class UsersController(UserService userService): ControllerBase {
 
     [HttpPost]
     public async Task<ActionResult<UserResponseDto>> Create(CreateUserDto dto) {
-        var user = await userService.CreateAsync(new CreateUserRequest {
-            Email = dto.Email,
-            Password = dto.Password,
-            FullName = dto.FullName,
-        });
-        return Ok(UserResponseDto.FromEntity(user));
+        try {
+            var user = await userService.CreateAsync(new CreateUserRequest {
+                Email = dto.Email,
+                Password = dto.Password,
+                FullName = dto.FullName,
+            });
+            return Ok(UserResponseDto.FromEntity(user));
+        } catch (EmailTakenException e) {
+            return Conflict(new { message = e.Message });
+        }
     }
     
     [HttpPatch("{id}/role")]
