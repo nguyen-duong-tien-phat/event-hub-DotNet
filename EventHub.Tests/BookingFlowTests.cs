@@ -3,6 +3,7 @@ using EventHub.Core.Common;
 using EventHub.Core.Events;
 using EventHub.Core.Payments;
 using EventHub.Core.Tickets;
+using EventHub.Core.Users;
 using Moq;
 
 namespace EventHub.Tests;
@@ -213,7 +214,7 @@ public class BookingFlowTests {
         var booking = BookingWithIntent(BookingStatus.Pending);
         _payment.Setup(p => p.CancelPaymentIntentAsync("pi_1")).ReturnsAsync(true);
 
-        var result = await CreateService().CancelAsync(booking.Id, "user_1");
+        var result = await CreateService().CancelAsync(booking.Id, "user_1", UserRole.Attendee);
 
         Assert.Equal(BookingStatus.Cancelled, result!.Status);
         _payment.Verify(p => p.CancelPaymentIntentAsync("pi_1"), Times.Once);
@@ -226,7 +227,7 @@ public class BookingFlowTests {
         _payment.Setup(p => p.CancelPaymentIntentAsync("pi_1")).ReturnsAsync(false);
         _payment.Setup(p => p.IsPaymentSucceededAsync("pi_1")).ReturnsAsync(true);
 
-        await CreateService().CancelAsync(booking.Id, "user_1");
+        await CreateService().CancelAsync(booking.Id, "user_1", UserRole.Attendee);
 
         VerifyRefunded(booking, Times.Once);
     }
@@ -237,7 +238,7 @@ public class BookingFlowTests {
         _payment.Setup(p => p.CancelPaymentIntentAsync("pi_1")).ReturnsAsync(false);
         _payment.Setup(p => p.IsPaymentSucceededAsync("pi_1")).ReturnsAsync(false);
 
-        await CreateService().CancelAsync(booking.Id, "user_1");
+        await CreateService().CancelAsync(booking.Id, "user_1", UserRole.Attendee);
 
         VerifyRefunded(booking, Times.Never);
     }
@@ -246,7 +247,7 @@ public class BookingFlowTests {
     public async Task CancelAsync_FreeBooking_NeverTouchesStripe() {
         var booking = BookingWithIntent(BookingStatus.Confirmed, paymentIntentId: null);
 
-        await CreateService().CancelAsync(booking.Id, "user_1");
+        await CreateService().CancelAsync(booking.Id, "user_1", UserRole.Attendee);
 
         _payment.Verify(p => p.CancelPaymentIntentAsync(It.IsAny<string>()), Times.Never);
         _payment.Verify(p => p.RefundAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
@@ -374,7 +375,7 @@ public class BookingFlowTests {
         var booking = BookingWithIntent(BookingStatus.Pending);
         _payment.Setup(p => p.CancelPaymentIntentAsync("pi_1")).ThrowsAsync(new InvalidOperationException("stripe down"));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService().CancelAsync(booking.Id, "user_1"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService().CancelAsync(booking.Id, "user_1", UserRole.Attendee));
 
         Assert.Equal(BookingStatus.Cancelled, booking.Status);
         _unitOfWork.Verify(u => u.CommitAsync(), Times.Once);
@@ -387,8 +388,8 @@ public class BookingFlowTests {
         _payment.Setup(p => p.CancelPaymentIntentAsync("pi_1")).ReturnsAsync(true);
         var service = CreateService();
 
-        await service.CancelAsync(booking.Id, "user_1");
-        var second = await service.CancelAsync(booking.Id, "user_1");
+        await service.CancelAsync(booking.Id, "user_1", UserRole.Attendee);
+        var second = await service.CancelAsync(booking.Id, "user_1", UserRole.Attendee);
 
         Assert.Equal(BookingStatus.Cancelled, second!.Status);
         _ticketRepo.Verify(r => r.ReleaseAsync(booking.Tickets), Times.Once);
@@ -399,7 +400,7 @@ public class BookingFlowTests {
     public async Task CancelAsync_OnAnAlreadyCancelledBooking_DoesNotTouchTicketsOrStripe() {
         var booking = BookingWithIntent(BookingStatus.Cancelled);
 
-        var result = await CreateService().CancelAsync(booking.Id, "user_1");
+        var result = await CreateService().CancelAsync(booking.Id, "user_1", UserRole.Attendee);
 
         Assert.Equal(BookingStatus.Cancelled, result!.Status);
         _ticketRepo.Verify(r => r.ReleaseAsync(It.IsAny<List<BookingTicket>>()), Times.Never);
@@ -411,7 +412,49 @@ public class BookingFlowTests {
         var booking = BookingWithIntent(BookingStatus.Cancelled);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            CreateService().CancelAsync(booking.Id, "user_2"));
+            CreateService().CancelAsync(booking.Id, "user_2", UserRole.Attendee));
+    }
+
+    private void GivenEventOf(string organizerId) =>
+        _eventRepo.Setup(r => r.GetByIdAsync("event_1")).ReturnsAsync(new Event {
+            Id = "event_1", Title = "t", Description = "d", Location = "l", OrganizerId = organizerId,
+            ImageUrl = "x", Highlights = [], StartsAt = DateTime.UtcNow.AddDays(10)
+        });
+
+    [Fact]
+    public async Task CancelAsync_AnAdminCancellingSomeoneElsesPaidBooking_CancelsAndRefunds() {
+        var booking = BookingWithIntent(BookingStatus.Confirmed);
+        GivenEventOf("org_1");
+        _payment.Setup(p => p.CancelPaymentIntentAsync("pi_1")).ReturnsAsync(false);
+        _payment.Setup(p => p.IsPaymentSucceededAsync("pi_1")).ReturnsAsync(true);
+
+        var result = await CreateService().CancelAsync(booking.Id, "admin_1", UserRole.Admin);
+
+        Assert.Equal(BookingStatus.Cancelled, result!.Status);
+        _ticketRepo.Verify(r => r.ReleaseAsync(It.IsAny<List<BookingTicket>>()), Times.Once);
+        VerifyRefunded(booking, Times.Once);
+    }
+
+    [Fact]
+    public async Task CancelAsync_TheOrganizerOfTheEvent_MayCancelItsBookings() {
+        var booking = BookingWithIntent(BookingStatus.Pending);
+        GivenEventOf("org_1");
+        _payment.Setup(p => p.CancelPaymentIntentAsync("pi_1")).ReturnsAsync(true);
+
+        var result = await CreateService().CancelAsync(booking.Id, "org_1", UserRole.Organizer);
+
+        Assert.Equal(BookingStatus.Cancelled, result!.Status);
+    }
+
+    [Fact]
+    public async Task CancelAsync_AnOrganizerOfAnotherEvent_IsRefused() {
+        var booking = BookingWithIntent(BookingStatus.Pending);
+        GivenEventOf("org_1");
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            CreateService().CancelAsync(booking.Id, "org_2", UserRole.Organizer));
+
+        _ticketRepo.Verify(r => r.ReleaseAsync(It.IsAny<List<BookingTicket>>()), Times.Never);
     }
 
     [Fact]

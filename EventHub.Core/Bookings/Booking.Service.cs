@@ -282,12 +282,22 @@ public class BookingService (
         };
     }
     
-    public async Task<Booking?> CancelAsync(string bookingId, string requestingUserId) {
+    /// <summary>
+    /// Cancels a booking, releases its tickets and refunds it if it was paid. The buyer may cancel their own;
+    /// an admin may cancel any, and an organizer those of their own events (the same rule as managing the event).
+    /// </summary>
+    /// <exception cref="UnauthorizedAccessException">The caller may not cancel this booking.</exception>
+    public async Task<Booking?> CancelAsync(string bookingId, string requestingUserId, UserRole requestingRole) {
         var booking = await bookingRepository.GetByIdAsync(bookingId);
         if (booking == null) return null;
 
         if (booking.UserId != requestingUserId) {
-            throw new UnauthorizedAccessException("You can only cancel your own bookings");
+            var ev = await eventRepository.GetByIdAsync(booking.EventId);
+            // No event row: only an admin may still clean the booking up.
+            if (ev == null && requestingRole != UserRole.Admin) {
+                throw new UnauthorizedAccessException("You can only cancel your own bookings");
+            }
+            if (ev != null) EventAccess.EnsureCanManage(requestingUserId, requestingRole, ev);
         }
 
         // Cancelling twice (a retry, or the expiry job got there first) is the same as once.

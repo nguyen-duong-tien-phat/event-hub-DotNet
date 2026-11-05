@@ -120,15 +120,17 @@ public class BookingsController(BookingService bookingService, IRateLimiter rate
         }
     }
 
-    [Authorize(Roles = "Admin, Attendee")]
+    /// <summary>The buyer cancels their own; an admin any booking; an organizer those of their events. Paid ones are refunded.</summary>
+    [Authorize(Roles = "Admin, Attendee, Organizer")]
     [HttpPatch("{id}/cancel")]
     public async Task<IActionResult> Cancel(string id) {
         var userIdClaim = User.FindFirst(JwtRegisteredClaimNames.Sub);
         if (userIdClaim == null) return Unauthorized();
         var userId = userIdClaim.Value;
+        var role = Enum.Parse<UserRole>(User.FindFirst(ClaimTypes.Role)!.Value);
 
         try {
-            var booking = await bookingService.CancelAsync(id, userId);
+            var booking = await bookingService.CancelAsync(id, userId, role);
             return booking == null ? NotFound() : Ok(await bookingService.ToResponseAsync(booking));
         }
         catch (UnauthorizedAccessException) {
