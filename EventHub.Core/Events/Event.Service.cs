@@ -27,17 +27,18 @@ public class EventService(
         decimal? maxPrice,
         DateTime? from,
         DateTime? to,
-        string? organizerId = null)
+        string? organizerId = null,
+        EventSort sort = EventSort.StartsAt)
     {
         var searchNormalize = search != null ? search.Trim().ToLower() :  string.Empty;
         var categoryNormalize = category != null ? category.Trim().ToLower() : string.Empty;
-        var cacheKey = $"{CacheKeyPrefix}page={page}:pageSize={pageSize}:search={searchNormalize}:category={categoryNormalize}:minPrice={minPrice}:maxPrice={maxPrice}:from={from}:to={to}:organizer={organizerId}";
+        var cacheKey = $"{CacheKeyPrefix}page={page}:pageSize={pageSize}:search={searchNormalize}:category={categoryNormalize}:minPrice={minPrice}:maxPrice={maxPrice}:from={from}:to={to}:organizer={organizerId}:sort={sort}";
         var cached = await cache.GetAsync(cacheKey);
         if (cached != null) {
             return JsonSerializer.Deserialize<PagedResult<Event>>(cached)!;
         }
 
-        var (items, totalCount) = await eventRepository.GetEventsQuery(page, pageSize, search, category, minPrice, maxPrice, from, to, organizerId);
+        var (items, totalCount) = await eventRepository.GetEventsQuery(page, pageSize, search, category, minPrice, maxPrice, from, to, organizerId, sort);
         var result = new PagedResult<Event> {
             Items = items,
             Page = page,
@@ -76,6 +77,35 @@ public class EventService(
         return eventResponse;
     }
     
+    /// <summary>Sales numbers for one event. Null when the event does not exist.</summary>
+    /// <exception cref="UnauthorizedAccessException">The caller is neither the organizer nor an admin.</exception>
+    public async Task<EventStatsDto?> GetStatsAsync(string requestId, UserRole requestRole, string eventId) {
+        var existing = await eventRepository.GetByIdAsync(eventId);
+        if (existing == null) return null;
+        EventAccess.EnsureCanManage(requestId, requestRole, existing);
+
+        var stats = await bookingRepository.GetStatsForEventAsync(eventId);
+        var tickets = await ticketRepository.GetByEventIdAsync(eventId);
+
+        return new EventStatsDto {
+            EventId = eventId,
+            Bookings = new BookingCounts { Pending = stats.Pending, Confirmed = stats.Confirmed, Cancelled = stats.Cancelled },
+            TicketRevenue = stats.ConfirmedTotal - stats.ConfirmedServiceFees,
+            ServiceFees = stats.ConfirmedServiceFees,
+            TicketsSold = stats.SoldByTicketId.Values.Sum(),
+            CheckedIn = stats.CheckedIn,
+            Tickets = tickets.Select(t => {
+                var sold = stats.SoldByTicketId.GetValueOrDefault(t.Id);
+                return new TicketStatsDto {
+                    TicketId = t.Id, Type = t.Type, Price = t.Price,
+                    TotalQuantity = t.TotalQuantity, RemainingQuantity = t.RemainingQuantity,
+                    Sold = sold,
+                    Held = Math.Max(0, t.TotalQuantity - t.RemainingQuantity - sold),
+                };
+            }).ToList(),
+        };
+    }
+
     public async Task<List<Event>> GetFeaturedEventsAsync(int limit) =>
         await eventRepository.GetFeaturedEventsAsync(limit);
     
@@ -132,6 +162,7 @@ public class EventService(
         if (request.DoorsOpenAt is not null) existing.DoorsOpenAt = request.DoorsOpenAt;
         if (request.AgeRestriction is not null) existing.AgeRestriction = request.AgeRestriction;
         if (request.RefundPolicy is not null) existing.RefundPolicy = request.RefundPolicy;
+        if (request.Highlights is not null) existing.Highlights = request.Highlights;
         if (request.ImageUrl is not null) {
             ValidateImageUrl(request.ImageUrl);
             existing.ImageUrl = request.ImageUrl;

@@ -25,6 +25,36 @@ public class BookingRepository(AppDbContext db) : Repository<Booking>(db), IBook
     public async Task<bool> AnyForEventAsync(string eventId) =>
         await DbSet.AnyAsync(b => b.EventId == eventId);
 
+    // shortcut: the confirmed bookings' ticket lists are summed in memory (one jsonb column per booking);
+    // fine up to tens of thousands of bookings per event, past that move the sum into SQL.
+    public async Task<BookingStats> GetStatsForEventAsync(string eventId) {
+        var forEvent = DbSet.AsNoTracking().Where(b => b.EventId == eventId);
+
+        var byStatus = await forEvent
+            .GroupBy(b => b.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count(), Total = g.Sum(b => b.TotalPrice), Fees = g.Sum(b => b.ServiceFee) })
+            .ToListAsync();
+        var confirmedTickets = await forEvent
+            .Where(b => b.Status == BookingStatus.Confirmed)
+            .Select(b => b.Tickets)
+            .ToListAsync();
+        var checkedIn = await db.TicketCheckIns.CountAsync(c => forEvent.Any(b => b.Id == c.BookingId));
+
+        int CountOf(BookingStatus status) => byStatus.FirstOrDefault(x => x.Status == status)?.Count ?? 0;
+        var confirmed = byStatus.FirstOrDefault(x => x.Status == BookingStatus.Confirmed);
+        return new BookingStats {
+            Pending = CountOf(BookingStatus.Pending),
+            Confirmed = CountOf(BookingStatus.Confirmed),
+            Cancelled = CountOf(BookingStatus.Cancelled),
+            ConfirmedTotal = confirmed?.Total ?? 0,
+            ConfirmedServiceFees = confirmed?.Fees ?? 0,
+            SoldByTicketId = confirmedTickets.SelectMany(t => t)
+                .GroupBy(t => t.TicketId)
+                .ToDictionary(g => g.Key, g => g.Sum(t => t.Quantity)),
+            CheckedIn = checkedIn,
+        };
+    }
+
     public async Task<List<Booking>> GetByEventIdAsync(string eventId) =>
         await DbSet
             .Where(b => b.EventId == eventId)

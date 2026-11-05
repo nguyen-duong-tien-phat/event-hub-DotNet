@@ -6,6 +6,14 @@ using EventHub.Core.Users;
 
 namespace EventHub.Core.Events;
 
+public enum EventSort {
+    /// <summary>Soonest first (the default).</summary>
+    StartsAt,
+    StartsAtDesc,
+    /// <summary>Most recently created first.</summary>
+    Newest,
+}
+
 public class EventQuery : PaginationQuery {
     public string? Search { get; set; }
     public string? Category { get; set; }
@@ -18,6 +26,8 @@ public class EventQuery : PaginationQuery {
 
     /// <summary>Only the events of this organizer; the dashboard uses it for "my events".</summary>
     public string? OrganizerId { get; set; }
+
+    public EventSort Sort { get; set; } = EventSort.StartsAt;
 }
 
 public class CreateEventRequest {
@@ -46,6 +56,9 @@ public class UpdateEventRequest {
     public DateTime? DoorsOpenAt { get; set; }
     public string? AgeRestriction { get; set; }
     public string? RefundPolicy { get; set; }
+
+    /// <summary>Null leaves the highlights alone; an empty list clears them.</summary>
+    public List<string>? Highlights { get; set; }
 }
 
 
@@ -172,4 +185,6 @@ public class UpdateEventDto {
 
     [MaxLength(500)]
     public string? RefundPolicy { get; set; }
+
+    public List<string>? Highlights { get; set; }
 }

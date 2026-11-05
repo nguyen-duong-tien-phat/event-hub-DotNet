@@ -138,19 +138,19 @@ public class EventServiceTests {
 
     [Fact]
     public async Task GetPagedAsync_WithAnOrganizer_AsksTheRepositoryForThatOrganizersEvents() {
-        _eventRepo.Setup(r => r.GetEventsQuery(1, 10, null, null, null, null, null, null, "org_1"))
+        _eventRepo.Setup(r => r.GetEventsQuery(1, 10, null, null, null, null, null, null, "org_1", EventSort.StartsAt))
             .ReturnsAsync((new List<Event>(), 0));
 
         await CreateService().GetPagedAsync(1, 10, null, null, null, null, null, null, "org_1");
 
-        _eventRepo.Verify(r => r.GetEventsQuery(1, 10, null, null, null, null, null, null, "org_1"), Times.Once);
+        _eventRepo.Verify(r => r.GetEventsQuery(1, 10, null, null, null, null, null, null, "org_1", EventSort.StartsAt), Times.Once);
     }
 
     [Fact]
     public async Task GetPagedAsync_CachesEachOrganizersListSeparately() {
         var keys = new List<string>();
         _cache.Setup(c => c.GetAsync(It.IsAny<string>())).Callback<string>(keys.Add).ReturnsAsync((string?)null);
-        _eventRepo.Setup(r => r.GetEventsQuery(It.IsAny<int>(), It.IsAny<int>(), null, null, null, null, null, null, It.IsAny<string?>()))
+        _eventRepo.Setup(r => r.GetEventsQuery(It.IsAny<int>(), It.IsAny<int>(), null, null, null, null, null, null, It.IsAny<string?>(), It.IsAny<EventSort>()))
             .ReturnsAsync((new List<Event>(), 0));
         var service = CreateService();
 
@@ -159,6 +159,82 @@ public class EventServiceTests {
         await service.GetPagedAsync(1, 10, null, null, null, null, null, null);
 
         Assert.Equal(3, keys.Distinct().Count());
+    }
+
+    [Fact]
+    public async Task GetPagedAsync_PassesTheSortToTheRepository_AndCachesEachSortSeparately() {
+        var keys = new List<string>();
+        _cache.Setup(c => c.GetAsync(It.IsAny<string>())).Callback<string>(keys.Add).ReturnsAsync((string?)null);
+        _eventRepo.Setup(r => r.GetEventsQuery(It.IsAny<int>(), It.IsAny<int>(), null, null, null, null, null, null, null, It.IsAny<EventSort>()))
+            .ReturnsAsync((new List<Event>(), 0));
+        var service = CreateService();
+
+        await service.GetPagedAsync(1, 10, null, null, null, null, null, null, sort: EventSort.Newest);
+        await service.GetPagedAsync(1, 10, null, null, null, null, null, null);
+
+        _eventRepo.Verify(r => r.GetEventsQuery(1, 10, null, null, null, null, null, null, null, EventSort.Newest), Times.Once);
+        Assert.Equal(2, keys.Distinct().Count());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_Highlights_AreReplaced_ClearedWithAnEmptyList_AndLeftAloneWhenNull() {
+        var existing = new Event { Id = "ev_1", Title = "T", StartsAt = DateTime.UtcNow.AddDays(10), Description = "D", Location = "L", OrganizerId = "org_1", ImageUrl = "x", Highlights = ["old"] };
+        _eventRepo.Setup(r => r.GetByIdAsync("ev_1")).ReturnsAsync(existing);
+        var service = CreateService();
+
+        await service.UpdateAsync("org_1", UserRole.Organizer, "ev_1", new UpdateEventRequest { Title = "T2" });
+        Assert.Equal(["old"], existing.Highlights); // not sent: untouched
+
+        await service.UpdateAsync("org_1", UserRole.Organizer, "ev_1", new UpdateEventRequest { Highlights = ["a", "b"] });
+        Assert.Equal(["a", "b"], existing.Highlights);
+
+        await service.UpdateAsync("org_1", UserRole.Organizer, "ev_1", new UpdateEventRequest { Highlights = [] });
+        Assert.Empty(existing.Highlights);
+    }
+
+    private void GivenEventWithSales() {
+        _eventRepo.Setup(r => r.GetByIdAsync("ev_1")).ReturnsAsync(new Event {
+            Id = "ev_1", Title = "T", Description = "D", Location = "L", OrganizerId = "org_1",
+            ImageUrl = "x", Highlights = [], StartsAt = DateTime.UtcNow.AddDays(10)
+        });
+        _ticketRepo.Setup(r => r.GetByEventIdAsync("ev_1")).ReturnsAsync([
+            new Ticket { Id = "t_gen", EventId = "ev_1", Type = "General", Price = 10, TotalQuantity = 100, RemainingQuantity = 90, MaxPerOrder = 5 },
+            new Ticket { Id = "t_vip", EventId = "ev_1", Type = "VIP", Price = 50, TotalQuantity = 10, RemainingQuantity = 10, MaxPerOrder = 2 },
+        ]);
+        _bookingRepo.Setup(r => r.GetStatsForEventAsync("ev_1")).ReturnsAsync(new BookingStats {
+            Pending = 1, Confirmed = 2, Cancelled = 3,
+            ConfirmedTotal = 79.20m, ConfirmedServiceFees = 0.20m, // total charged, fee included
+            SoldByTicketId = new() { ["t_gen"] = 8 },
+            CheckedIn = 4,
+        });
+    }
+
+    [Fact]
+    public async Task GetStatsAsync_SeparatesRevenueFromFees_AndSplitsSoldFromHeld() {
+        GivenEventWithSales();
+
+        var stats = await CreateService().GetStatsAsync("org_1", UserRole.Organizer, "ev_1");
+
+        Assert.Equal(79.00m, stats!.TicketRevenue);
+        Assert.Equal(0.20m, stats.ServiceFees);
+        Assert.Equal(8, stats.TicketsSold);
+        Assert.Equal(4, stats.CheckedIn);
+        Assert.Equal((1, 2, 3), (stats.Bookings.Pending, stats.Bookings.Confirmed, stats.Bookings.Cancelled));
+        var general = stats.Tickets.Single(t => t.TicketId == "t_gen");
+        Assert.Equal((8, 2), (general.Sold, general.Held)); // 10 left the stock: 8 paid, 2 waiting for payment
+        var vip = stats.Tickets.Single(t => t.TicketId == "t_vip");
+        Assert.Equal((0, 0), (vip.Sold, vip.Held));
+    }
+
+    [Fact]
+    public async Task GetStatsAsync_AnotherOrganizer_IsRefused_AndAMissingEventIsNull() {
+        GivenEventWithSales();
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.GetStatsAsync("org_2", UserRole.Organizer, "ev_1"));
+        Assert.Null(await service.GetStatsAsync("org_1", UserRole.Organizer, "missing"));
+        Assert.NotNull(await service.GetStatsAsync("admin_1", UserRole.Admin, "ev_1"));
+        _bookingRepo.Verify(r => r.GetStatsForEventAsync("ev_1"), Times.Once); // only the admin's call got that far
     }
 
     [Fact]

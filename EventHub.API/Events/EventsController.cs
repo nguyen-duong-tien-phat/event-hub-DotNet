@@ -42,7 +42,8 @@ public class EventsController(EventService eventService, UploadService uploadSer
             query.MaxPrice,
             query.From,
             query.To,
-            query.OrganizerId);
+            query.OrganizerId,
+            query.Sort);
         return Ok(result.Map(EventListItemDto.FromEntity));
     }
     
@@ -111,6 +112,21 @@ public class EventsController(EventService eventService, UploadService uploadSer
         }
     }
 
+    /// <summary>Bookings by status, revenue, tickets sold and people checked in. The event's organizer or an admin.</summary>
+    [Authorize(Roles = "Admin, Organizer")]
+    [HttpGet("{id}/stats")]
+    public async Task<ActionResult<EventStatsDto>> GetStats(string id) {
+        var requestId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
+        var requestRole = Enum.Parse<UserRole>(User.FindFirst(ClaimTypes.Role)!.Value);
+
+        try {
+            var stats = await eventService.GetStatsAsync(requestId, requestRole, id);
+            return stats == null ? NotFound() : Ok(stats);
+        } catch (UnauthorizedAccessException) {
+            return Forbid();
+        }
+    }
+
     [Authorize(Roles = "Admin, Organizer")]
     [HttpPatch("{id}")]
     public async Task<IActionResult> Update(string id, UpdateEventDto dto) {
@@ -128,7 +144,8 @@ public class EventsController(EventService eventService, UploadService uploadSer
                 EndsAt = dto.EndsAt,
                 DoorsOpenAt = dto.DoorsOpenAt,
                 AgeRestriction = dto.AgeRestriction,
-                RefundPolicy = dto.RefundPolicy
+                RefundPolicy = dto.RefundPolicy,
+                Highlights = dto.Highlights
             });
             return updated == null ? NotFound() : Ok(updated);
         } catch (UnauthorizedAccessException) {

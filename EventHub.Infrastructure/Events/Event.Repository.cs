@@ -24,7 +24,8 @@ public class EventRepository(AppDbContext db): Repository<Event>(db), IEventRepo
         decimal? maxPrice,
         DateTime? from,
         DateTime? to,
-        string? organizerId
+        string? organizerId,
+        EventSort sort
         ) {
         var query = DbSet.AsNoTracking();
 
@@ -60,8 +61,14 @@ public class EventRepository(AppDbContext db): Repository<Event>(db), IEventRepo
         }
 
         var totalCount = await query.CountAsync();
-        var items = await query
-            .OrderBy(e => e.StartsAt)
+        // The id breaks ties, so pages never overlap.
+        var ordered = sort switch {
+            EventSort.StartsAtDesc => query.OrderByDescending(e => e.StartsAt),
+            EventSort.Newest => query.OrderByDescending(e => e.CreatedAt),
+            _ => query.OrderBy(e => e.StartsAt),
+        };
+        var items = await ordered
+            .ThenBy(e => e.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Include(e => e.Organizer)
