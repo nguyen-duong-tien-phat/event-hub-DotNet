@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 .NET 10 solution (`EventHub.sln`). Run everything from the repo root unless noted.
 
 ```bash
-docker compose up -d postgres redis mailpit   # dependencies only (run the API from the IDE / dotnet run)
+docker compose up -d postgres redis mailpit floci   # dependencies only (run the API from the IDE / dotnet run)
 docker compose up --build                     # full stack; API on :8080, Swagger at /swagger (Development only)
 
 dotnet build
@@ -24,7 +24,7 @@ k6 run load-test.js                           # concurrency/oversell test; needs
 ```
 
 - `dotnet run --project EventHub.API` must be started from a directory where `../.env` resolves (`Program.cs` calls `Env.Load("../.env")`), i.e. from `EventHub.API/`, as the IDE launch profiles do (`http://localhost:8080`).
-- `.env` (gitignored) supplies `Jwt__Key`, `Tickets__Secret`, `Stripe__SecretKey`, `Stripe__WebhookSecret`, `DB_CONNECTION`. The app throws at startup if `Jwt:Key` or `Tickets:Secret` is empty. `appsettings.Development.json` is also gitignored; `appsettings.json` has no connection strings.
+- `.env` (gitignored) supplies `Jwt__Key`, `Tickets__Secret`, `Stripe__SecretKey`, `Stripe__WebhookSecret`, `DB_CONNECTION`, and, when running outside compose, the S3 settings (see Event images). The app throws at startup if `Jwt:Key`, `Tickets:Secret`, `S3:Bucket` or `S3:PublicBaseUrl` is empty. `appsettings.Development.json` is also gitignored; `appsettings.json` has no connection strings.
 - `RedisRateLimiterTests` use `[RedisFact]`, which skips unless Redis is on `localhost:6379`. All other tests mock repositories and need no infrastructure.
 
 ## Architecture
@@ -42,6 +42,7 @@ All wiring is in `EventHub.API/Program.cs`. Several services (`TokenService`, `R
 - Idempotency: `(UserId, IdempotencyKey)` has a unique index; a replay or a race loser returns the original booking (`BookingInProgressException` if the winner has not yet attached a PaymentIntent).
 - Booking status moves `Pending → Confirmed | Cancelled`. Confirmation comes from the Stripe webhook (`Webhook.Controller.cs`, signature-verified) or from the client-driven `ConfirmPaymentAsync`; both are idempotent. If a payment succeeds after the booking was cancelled, `RefundIfPaidAsync` refunds it.
 - `BookingExpiryJob` (a `BackgroundService`, every minute) cancels `Pending` bookings older than `BookingService.HoldDuration` (15 min) and releases their tickets. Both background jobs resolve scoped services through `IServiceScopeFactory`. They live in Infrastructure under the namespace `EventHub.BackgroundJobs`.
+- Ticket stock is only ever changed by atomic SQL: `TryReserveAsync`, `ReleaseAsync`, `TryAdjustTotalAsync` (editing the total) and `TryDeleteUnsoldAsync`. Never call `Update()` on a `Ticket` and save the whole row: it writes `RemainingQuantity` back from an earlier read and undoes sales made in between. `TicketService.UpdateAsync` relies on EF writing only the changed columns.
 - Repositories share one scoped `DbContext` per request, so never run repository calls in parallel (`Task.WhenAll`).
 
 ### Tickets and check-in
@@ -53,11 +54,20 @@ Confirmed bookings expose one HMAC-signed code per admitted person (`TicketCodeS
 - Short-lived JWT access tokens (`TokenService`) plus DB-backed refresh tokens with rotation and reuse detection (`RefreshTokenService`). `JsonWebTokenHandler.DefaultInboundClaimTypeMap` is cleared in `Program.cs`, so claim names are the raw JWT ones (not the .NET URI claim types).
 - Password reset: 6-digit code emailed through `IEmailSender`. `SmtpEmailSender` is used if `Smtp:Host` is set (docker-compose points it at Mailpit, inbox at http://localhost:8025); otherwise `LogEmailSender` writes the email to the log.
 - `ExpiredCredentialsCleanupJob` hourly deletes expired refresh tokens and reset codes via `ExpiredCredentialsCleaner`.
-- Roles: Attendee / Organizer / Admin. Ownership checks (attendee sees own bookings, organizer sees bookings of own events) are in the services, which throw `UnauthorizedAccessException`.
+- Roles: Attendee / Organizer / Admin. `EventAccess.EnsureCanManage` (Core/Events) is the one rule for "an admin, or the event's own organizer"; events, tickets and an event's booking list all use it. Services throw `UnauthorizedAccessException` and controllers answer 403. An attendee sees only their own bookings.
+- `PATCH /users/{id}/role` (Admin) sets any role; an admin cannot lower their own, so one admin always remains. The role is baked into the access token, so a change reaches the user when the token is next refreshed.
+
+### Event images (S3)
+
+- `IFileStorage` (Core) is implemented by `S3FileStorage` (Infrastructure, `AWSSDK.S3`). `UploadService` holds the rules: `Rules` maps each `UploadKind` to a folder and its allowed content types, so a new kind of upload is one more line there.
+- Flow: `POST /events/image-upload` (Admin/Organizer) returns a presigned PUT URL (5 min) and the final `fileUrl`. The client PUTs the bytes straight to S3, then sends `fileUrl` as `imageUrl` on `POST`/`PATCH /events`. `EventService` rejects any `imageUrl` that is not under our storage (`UploadService.IsUploadedUrl`). The `Content-Type` is part of the signature, so the PUT must send exactly the type that was asked for, and no `Authorization` header. There is no size limit (a presigned POST would allow one).
+- `DELETE /events/{id}` answers 409 if the event has any booking (`Booking.EventId` has no foreign key, so deleting would orphan paid bookings). Otherwise it deletes the event, clears the event cache, then deletes the poster *after* the commit. `IFileStorage.DeleteAsync` logs an S3 failure instead of throwing, and files not under our storage (seed data, external URLs) are never deleted.
+- Config: `S3__Bucket` and `S3__PublicBaseUrl` (required), `S3__ServiceUrl` (set: an S3-compatible emulator such as Floci; empty: real AWS), and `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_REGION`, which the SDK reads itself (`test`/`test` for Floci; compose sets them). The host in `S3__PublicBaseUrl` is saved into every event's `imageUrl`, so use an address the clients can reach *before* uploading (a phone or Android emulator cannot reach `localhost.floci.io`). `S3FileStorage` signs `http://` when `ServiceURL` is plain http; the SDK would otherwise sign `https://`.
+- Floci (a local AWS emulator, started by compose or `floci aws start --detach --persist ~/.floci/data/aws-dev`): point the `aws` CLI at it with `eval "$(floci aws env -o text)"`, then create the bucket and its CORS rule as in the README. Floci does not enforce bucket read policies. Browsers need CORS twice: `Cors__AllowedOrigins` for the API (default `http://localhost:5173`) and the bucket's CORS rule for the PUT.
 
 ### Redis
 
-- `RedisCacheService`: cache-aside for the events list, invalidated on event writes.
+- `RedisCacheService`: cache-aside for the events list (the key holds every filter, including `organizerId`, under `EventService.CacheKeyPrefix`). Event writes and ticket create/update/delete clear it.
 - `RedisRateLimiter.IsAllowedAsync(key, maxAttempts, window)`: token bucket. Callers in controllers build the keys (`rateLimit:login:ip:*`, `rateLimit:login:email:*`, `rateLimit:booking:{userId}`, forgot/reset password) and return 429 when it says no.
 
 ### Database
@@ -66,4 +76,4 @@ PostgreSQL via EF Core/Npgsql. `Program.cs` builds the `NpgsqlDataSource` once a
 
 ## Docs caveat
 
-`README.md` is partly out of date: it says the rate limiter is Fixed Window (now token bucket), calls the API project `EventHub.Api`, and omits refresh tokens, password reset, QR check-in, and the cleanup job. Trust the code.
+`README.md` is a portfolio overview and skips detail, so trust the code when they differ. It does cover running locally, the one-time Floci bucket and CORS setup, and who may do what.

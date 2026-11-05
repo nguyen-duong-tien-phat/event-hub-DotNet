@@ -18,6 +18,7 @@
 - **Safe to retry.** Per-user idempotency keys mean a double-click or network retry returns the original booking instead of creating a second one.
 - **Production-style auth.** Short-lived JWTs, rotating refresh tokens with reuse detection, rate-limited login, and email-code password reset.
 - **Tamper-proof QR check-in.** HMAC-signed ticket codes, each admitted exactly once at the door.
+- **Images that skip the server.** Organizers upload posters straight to S3 with a short-lived presigned URL, so image bytes never pass through the API. Only URLs the API issued are accepted.
 
 ## Tech stack
 
@@ -28,8 +29,17 @@
 | Cache / limits | Redis 7 | Cache-aside event list and a token-bucket rate limiter |
 | Payments | Stripe (PaymentIntents + webhooks) | Async confirmation, no DB transaction held across a network call |
 | Auth | JWT + DB-backed refresh tokens | Rotation and reuse detection |
+| Files | S3 via presigned URLs (Floci locally) | Browsers upload directly; the API only signs and validates |
 | Testing | xUnit, Moq, k6 | Services unit-tested with mocked repositories; k6 for concurrency |
 | Infra | Docker Compose, GitHub Actions | One command for the full stack; CI builds and tests every push |
+
+## Who can do what
+
+| Role | Can |
+|---|---|
+| **Attendee** | Browse events, book and pay, see their own bookings and ticket codes, save events |
+| **Organizer** | Everything on their own events: create, edit and delete them (not once booked), upload posters, manage ticket types (a ticket that has sold can't be deleted), see bookings with the buyer's name and email, check tickets in |
+| **Admin** | The same on any event, plus list users and set their roles (an admin cannot lower their own) |
 
 ## Architecture
 
@@ -42,6 +52,8 @@ flowchart LR
     Infra --> Redis[(Redis)]
     Infra --> Stripe[Stripe]
     Infra --> SMTP[SMTP / Mailpit]
+    Infra --> S3[(S3 / Floci)]
+    Client -. presigned PUT .-> S3
     Stripe -- webhook --> API
     Jobs[Background jobs<br/>booking expiry, token cleanup] --> Infra
 ```
@@ -93,13 +105,13 @@ Postgres serializes writes to the row, so no read-then-write race exists. Versio
 
 ## Results
 
-- **90+ automated tests** (xUnit + Moq) covering booking, payments, check-in, refresh tokens, password reset and cleanup jobs. CI builds and tests on every push.
+- **160+ automated tests** (xUnit + Moq) covering booking, payments, check-in, refresh tokens, password reset and cleanup jobs. CI builds and tests on every push.
 - **Concurrency verified with k6:** 30 simultaneous booking requests against a ticket with known stock. Successes matched the remaining stock exactly, the rest received `409 Conflict`, and nothing oversold. See [`load-test.js`](load-test.js).
 - **What I learned:** pushing correctness into one atomic database statement is simpler and faster than coordinating it in application code, and keeping network calls out of transactions makes failure handling tractable.
 
 ## Run locally
 
-Requires Docker. Create a `.env` in the repo root with `DB_CONNECTION`, `Jwt__Key`, `Tickets__Secret`, `Stripe__SecretKey` and `Stripe__WebhookSecret`, then:
+Requires Docker. Create a `.env` in the repo root with `DB_CONNECTION`, `Jwt__Key`, `Tickets__Secret`, `Stripe__SecretKey` and `Stripe__WebhookSecret`. The compose file already runs a Floci container (a local AWS emulator) for event images and points the API at it; do the one-time bucket setup in [Event images and CORS](#event-images-and-cors) after the first start. Then:
 
 ```bash
 git clone git@github.com:nguyen-duong-tien-phat/event-hub-DotNet.git
