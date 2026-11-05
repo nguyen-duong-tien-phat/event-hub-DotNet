@@ -21,7 +21,8 @@ public class WebhooksController(
         try {
             stripeEvent = EventUtility.ConstructEvent(json, signature, webhookSecret);
         }
-        catch {
+        catch (Exception e) {
+            logger.LogWarning(e, "Rejected a Stripe webhook: the signature did not verify");
             return BadRequest(); // signature invalid - reject
         }
         

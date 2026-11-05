@@ -12,6 +12,7 @@ using EventHub.Core.Payments;
 using EventHub.Core.SavedEvents;
 using EventHub.Core.Tickets;
 using EventHub.Core.Users;
+using EventHub.Errors;
 using EventHub.Infrastructure.Auth;
 using EventHub.Infrastructure.Bookings;
 using EventHub.Infrastructure.Caching;
@@ -24,6 +25,7 @@ using EventHub.Infrastructure.SavedEvents;
 using EventHub.Infrastructure.Tickets;
 using EventHub.Infrastructure.Users;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -188,9 +190,23 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
     .WithHeaders("Authorization", "Content-Type", "Idempotency-Key")
     .AllowAnyMethod()));
 
+// Errors nobody handled become a 500 with a { message, traceId } body (see GlobalExceptionHandler).
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails(); // UseExceptionHandler() refuses to start without it, even though our handler answers
+// One line per request: method, path, status, time. No query string (it can carry tokens), no headers, no bodies.
+builder.Services.AddHttpLogging(options => {
+    options.LoggingFields = HttpLoggingFields.RequestMethod | HttpLoggingFields.RequestPath
+        | HttpLoggingFields.ResponseStatusCode | HttpLoggingFields.Duration;
+    options.CombineLogs = true;
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
+// Logging sits outside the exception handler so a failed request is logged with its 500.
+// (In Development the developer exception page runs first and shows the details instead.)
+app.UseHttpLogging();
+app.UseExceptionHandler();
 app.UseHttpsRedirection();
 app.UseCors();
 app.UseAuthentication();

@@ -35,6 +35,12 @@ Files are organized by feature folder in each project (`Bookings/`, `Auth/`, `Ti
 
 All wiring is in `EventHub.API/Program.cs`. Several services (`TokenService`, `RefreshTokenService`, `PasswordResetService`, `TicketCodeSigner`) take plain config values (secrets, TTLs) via constructor and are registered with factory lambdas rather than `IOptions`.
 
+### Errors and logging
+
+- Controllers turn the errors they expect into status codes (`{ message }` bodies: 400/403/404/409/429). Anything else reaches `GlobalExceptionHandler` (`EventHub.API/Errors`): it logs the exception with method, path and request id, and answers 500 `{ message, traceId }`; the exception text never goes to the client. A client that hung up (`RequestAborted`) is logged at Information, not as an error. In Development the developer exception page runs first and shows the details.
+- `UseHttpLogging` writes one line per request (method, path, status, duration; no query string, headers or bodies). It sits outside the exception handler so a 500 is logged too. Its category is raised to Information in `appsettings.json`.
+- `EventHub.Core` has no logger: `BookingService.ExpireAbandonedBookingAsync` still swallows per-booking failures silently.
+
 ### Booking and inventory (the core of the project)
 
 - `TicketRepository.TryReserveAsync` oversell protection is a single atomic `UPDATE "Tickets" SET "RemainingQuantity" = "RemainingQuantity" - n WHERE "Id" = x AND "RemainingQuantity" >= n`, with the rows-affected count as the verdict. Don't replace it with read-then-write, a version token, or app-level locking (README explains why). `ReleaseAsync` is the inverse.
