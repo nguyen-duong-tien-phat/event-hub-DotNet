@@ -111,6 +111,33 @@ k6 run load-test.js              # concurrency test (set a JWT and ticketId at t
 
 For the Stripe webhook locally, run `stripe listen --forward-to localhost:8080/webhooks/stripe` and use the printed `whsec_...` as `Stripe__WebhookSecret`.
 
+### Event images and CORS
+
+Poster images go from the browser straight to S3 (a presigned `PUT`), so two CORS rules are needed:
+
+- **The API** lets the web dashboard call it. Set `Cors__AllowedOrigins` (comma separated; default `http://localhost:5173`).
+- **The bucket** must allow the dashboard's origin to `PUT` the file. Locally the bucket lives in Floci:
+
+```bash
+eval "$(floci aws env -o text)"          # point the aws CLI at Floci, not real AWS
+aws s3 mb s3://eventhub-images
+aws s3api put-bucket-cors --bucket eventhub-images --cors-configuration \
+  '{"CORSRules":[{"AllowedOrigins":["http://localhost:5173"],"AllowedMethods":["PUT","GET"],"AllowedHeaders":["Content-Type"]}]}'
+```
+
+In production list only the real dashboard origin in both places, never `*`.
+
+**Reading the images (mobile and web).** The Flutter app and the dashboard show a poster with a plain `GET` on `imageUrl`, with no token. On real AWS the bucket must therefore allow public reads, for the image folders only:
+
+```bash
+aws s3api put-bucket-policy --bucket eventhub-images --policy \
+  '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":"*","Action":"s3:GetObject","Resource":["arn:aws:s3:::eventhub-images/events/images/*","arn:aws:s3:::eventhub-images/users/avatars/*"]}]}'
+```
+
+Floci accepts this command but does not enforce read policies (every object is readable locally), so it only matters on real AWS. The mobile app needs no CORS: that rule is only for browsers.
+
+**The host in `S3__PublicBaseUrl` is saved into every event's `imageUrl`.** The default `localhost.floci.io` points at the device itself on a phone or an Android emulator, so the poster will not load there. Before uploading images from a device, set `S3__ServiceUrl` and `S3__PublicBaseUrl` to an address the device can reach (your computer's LAN IP, or `10.0.2.2` for the Android emulator). Changing it later does not rewrite existing events.
+
 ## Roadmap
 
 - Webhook and payment-flow integration tests
