@@ -48,6 +48,8 @@ services:
       Jwt__Key: ${Jwt__Key}
       Tickets__Secret: ${Tickets__Secret}
       Cors__AllowedOrigins: ${Cors__AllowedOrigins:-http://localhost:5173}
+      # Swagger UI at /swagger. This stack is for development; set false anywhere that is not.
+      Swagger__Enabled: ${Swagger__Enabled:-true}
       Jwt__Issuer: ${Jwt__Issuer:-EventHub}
       Jwt__Audience: ${Jwt__Audience:-EventHubUsers}
       Jwt__ExpiryMinutes: ${Jwt__ExpiryMinutes:-15}

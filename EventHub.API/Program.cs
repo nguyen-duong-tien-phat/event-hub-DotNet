@@ -197,7 +197,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-if (app.Environment.IsDevelopment()) {
+// On in Development, and wherever Swagger:Enabled is true (the compose stack sets it; a container runs as Production).
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger:Enabled")) {
     app.UseSwagger();
     app.UseSwaggerUI(c => c.EnablePersistAuthorization());
 }

@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 docker compose up -d postgres redis mailpit floci   # dependencies only (run the API from the IDE / dotnet run)
-docker compose up --build                     # full stack; API on :8080, Swagger at /swagger (Development only)
+docker compose up --build                     # full stack; API on :8080, Swagger at /swagger (Development, or Swagger__Enabled=true, which compose sets)
 
 dotnet build
 dotnet test                                   # CI runs: restore, build -c Release, test -c Release
