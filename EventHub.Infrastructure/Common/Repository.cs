@@ -14,7 +14,10 @@ public class Repository<T>(AppDbContext db): IRepository<T> where T: class {
     
     public async Task<(List<T> Items, int TotalCount)> GetPagedAsync(int page, int pageSize) {
         var totalCount = await DbSet.CountAsync();
+        // Newest first; the id breaks ties, so pages never overlap. Every entity derives from BaseEntity.
         var items = await DbSet
+            .OrderByDescending(e => EF.Property<DateTime>(e, "CreatedAt"))
+            .ThenBy(e => EF.Property<string>(e, "Id"))
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();

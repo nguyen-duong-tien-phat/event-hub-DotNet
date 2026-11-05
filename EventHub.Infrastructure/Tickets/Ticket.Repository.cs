@@ -14,7 +14,7 @@ public class TicketRepository(AppDbContext db) : Repository<Ticket>(db), ITicket
         var query = Db.Tickets.Where(t => t.EventId == eventId);
         
         var totalCount = await query.CountAsync();
-        var items =  await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+        var items = await query.OrderBy(t => t.CreatedAt).ThenBy(t => t.Id).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
         return (items, totalCount);
     }
     
