@@ -2,57 +2,70 @@ services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_USER: eventhub
-      POSTGRES_PASSWORD: eventhub_dev
-      POSTGRES_DB: eventhub
+      POSTGRES_USER: ${POSTGRES_USER:-eventhub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-eventhub_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-eventhub}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     
   redis:
     image: redis:7
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
 
   # A fake inbox for development: the API sends email to port 1025 and nothing leaves
   # the machine. Read it at http://localhost:8025.
   mailpit:
     image: axllent/mailpit
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "${MAILPIT_UI_PORT:-8025}:8025"
 
   # A fake AWS for development (S3 for event images). Console at http://localhost:4566/_floci/ui.
+  # Its data lives in the floci-data volume, so buckets and images survive restarts.
   floci:
     image: floci/floci:latest
+    environment:
+      FLOCI_STORAGE_MODE: persistent
+      FLOCI_STORAGE_PERSISTENT_PATH: /app/data
     ports:
-      - "4566:4566"
+      - "${FLOCI_PORT:-4566}:4566"
+    volumes:
+      - floci-data:/app/data
 
   api:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"
+      - "${API_PORT:-8080}:8080"
     environment:
-      ConnectionStrings__DefaultConnection: ${DB_CONNECTION}
+      # DB_CONNECTION overrides; otherwise it is built from the POSTGRES_* values above.
+      ConnectionStrings__DefaultConnection: ${DB_CONNECTION:-Host=postgres;Port=5432;Database=${POSTGRES_DB:-eventhub};Username=${POSTGRES_USER:-eventhub};Password=${POSTGRES_PASSWORD:-eventhub_dev}}
       ConnectionStrings__Redis: "redis:6379"
       Jwt__Key: ${Jwt__Key}
       Tickets__Secret: ${Tickets__Secret}
-      Cors__AllowedOrigins: "http://localhost:5173"
-      Jwt__Issuer: "EventHub"
-      Jwt__Audience: "EventHubUsers"
-      Jwt__ExpiryMinutes: "15"
-      Smtp__Host: "mailpit"
-      Smtp__Port: "1025"
-      Smtp__From: "Event Hub <no-reply@eventhub.local>"
-      # Presigned URLs are signed here but used by the browser, so the host must be reachable from the host machine.
-      S3__ServiceUrl: "http://localhost.floci.io:4566"
-      S3__Bucket: "eventhub-images"
-      S3__PublicBaseUrl: "http://localhost.floci.io:4566/eventhub-images"
-      AWS_ACCESS_KEY_ID: "test"
-      AWS_SECRET_ACCESS_KEY: "test"
+      Cors__AllowedOrigins: ${Cors__AllowedOrigins:-http://localhost:5173}
+      Jwt__Issuer: ${Jwt__Issuer:-EventHub}
+      Jwt__Audience: ${Jwt__Audience:-EventHubUsers}
+      Jwt__ExpiryMinutes: ${Jwt__ExpiryMinutes:-15}
+      Jwt__RefreshTokenDays: ${Jwt__RefreshTokenDays:-30}
+      # Mailpit by default. Point these at a real SMTP server to send real mail; an empty Smtp__Host logs emails instead.
+      Smtp__Host: ${Smtp__Host-mailpit}
+      Smtp__Port: ${Smtp__Port:-1025}
+      Smtp__From: "${Smtp__From:-Event Hub <no-reply@eventhub.local>}"
+      Smtp__User: ${Smtp__User:-}
+      Smtp__Password: ${Smtp__Password:-}
+      # From .env, defaulting to Floci. Presigned URLs are signed here but used by the browser, so the host
+      # must be reachable from the host machine (and from phones, if they load the images).
+      S3__ServiceUrl: ${S3__ServiceUrl:-http://localhost.floci.io:4566}
+      S3__Bucket: ${S3__Bucket:-eventhub-images}
+      S3__PublicBaseUrl: ${S3__PublicBaseUrl:-http://localhost.floci.io:4566/eventhub-images}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
       Stripe__SecretKey: ${Stripe__SecretKey}
       Stripe__WebhookSecret: ${Stripe__WebhookSecret}
     depends_on:
@@ -63,3 +76,4 @@ services:
 
 volumes:
   pgdata:
+  floci-data:

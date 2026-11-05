@@ -137,6 +137,8 @@ aws s3api put-bucket-cors --bucket eventhub-images --cors-configuration \
   '{"CORSRules":[{"AllowedOrigins":["http://localhost:5173"],"AllowedMethods":["PUT","GET"],"AllowedHeaders":["Content-Type"]}]}'
 ```
 
+The Floci in `docker-compose.yml` keeps its data in the `floci-data` volume, so the bucket, its CORS rule and the images survive restarts (`docker compose down -v` deletes them, along with the database). Don't also run `floci aws start`: both want port 4566.
+
 In production list only the real dashboard origin in both places, never `*`.
 
 **Reading the images (mobile and web).** The Flutter app and the dashboard show a poster with a plain `GET` on `imageUrl`, with no token. On real AWS the bucket must therefore allow public reads, for the image folders only:
