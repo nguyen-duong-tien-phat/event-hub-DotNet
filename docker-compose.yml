@@ -23,6 +23,12 @@ services:
       - "1025:1025"
       - "8025:8025"
 
+  # A fake AWS for development (S3 for event images). Console at http://localhost:4566/_floci/ui.
+  floci:
+    image: floci/floci:latest
+    ports:
+      - "4566:4566"
+
   api:
     build:
       context: .
@@ -40,12 +46,19 @@ services:
       Smtp__Host: "mailpit"
       Smtp__Port: "1025"
       Smtp__From: "Event Hub <no-reply@eventhub.local>"
+      # Presigned URLs are signed here but used by the browser, so the host must be reachable from the host machine.
+      S3__ServiceUrl: "http://localhost.floci.io:4566"
+      S3__Bucket: "eventhub-images"
+      S3__PublicBaseUrl: "http://localhost.floci.io:4566/eventhub-images"
+      AWS_ACCESS_KEY_ID: "test"
+      AWS_SECRET_ACCESS_KEY: "test"
       Stripe__SecretKey: ${Stripe__SecretKey}
       Stripe__WebhookSecret: ${Stripe__WebhookSecret}
     depends_on:
       - postgres
       - redis
       - mailpit
+      - floci
 
 volumes:
   pgdata:
