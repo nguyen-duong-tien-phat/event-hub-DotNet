@@ -91,6 +91,13 @@ public class EventListItemDto {
 
     /// <summary>Price of the cheapest ticket, or null if the event has none.</summary>
     public decimal? MinPrice { get; set; }
+
+    /// <summary>Price of the dearest ticket, or null if the event has none. With MinPrice it gives the price range.</summary>
+    public decimal? MaxPrice { get; set; }
+
+    /// <summary>Seats over all ticket types: how many exist, and how many are still for sale. 0 and 0 when there are no tickets.</summary>
+    public int TotalQuantity { get; set; }
+    public int RemainingQuantity { get; set; }
     public DateTime CreatedAt { get; set; }
 
     public static EventListItemDto FromEntity(Event ev) => new() {
@@ -103,6 +110,9 @@ public class EventListItemDto {
         ImageUrl = ev.ImageUrl,
         Category = ev.Category,
         MinPrice = ev.Tickets.Count == 0 ? null : ev.Tickets.Min(t => t.Price),
+        MaxPrice = ev.Tickets.Count == 0 ? null : ev.Tickets.Max(t => t.Price),
+        TotalQuantity = ev.Tickets.Sum(t => t.TotalQuantity),
+        RemainingQuantity = ev.Tickets.Sum(t => t.RemainingQuantity),
         CreatedAt = ev.CreatedAt
     };
 }

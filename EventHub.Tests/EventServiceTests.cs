@@ -330,6 +330,7 @@ public class EventServiceTests {
         };
 
         Assert.Equal(25m, EventListItemDto.FromEntity(ev).MinPrice);
+        Assert.Equal(80m, EventListItemDto.FromEntity(ev).MaxPrice);
     }
 
     [Fact]
@@ -340,6 +341,37 @@ public class EventServiceTests {
         };
 
         Assert.Null(EventListItemDto.FromEntity(ev).MinPrice);
+        Assert.Null(EventListItemDto.FromEntity(ev).MaxPrice);
+    }
+
+    [Fact]
+    public void ListItem_CountsTheSeatsOfEveryTicketType() {
+        var ev = new Event {
+            Title = "T", Description = "D", StartsAt = DateTime.UtcNow, Location = "L",
+            OrganizerId = "o", Organizer = new User { Id = "o", FullName = "Host" }, ImageUrl = "u", Highlights = [],
+            Tickets = [
+                new Ticket { EventId = "e", Price = 80m, TotalQuantity = 100, RemainingQuantity = 40, MaxPerOrder = 4 },
+                new Ticket { EventId = "e", Price = 25m, TotalQuantity = 200, RemainingQuantity = 0, MaxPerOrder = 4 },
+            ],
+        };
+
+        var dto = EventListItemDto.FromEntity(ev);
+
+        Assert.Equal(300, dto.TotalQuantity);
+        Assert.Equal(40, dto.RemainingQuantity);
+    }
+
+    [Fact]
+    public void ListItem_WithoutTickets_HasNoSeats() {
+        var ev = new Event {
+            Title = "T", Description = "D", StartsAt = DateTime.UtcNow, Location = "L",
+            OrganizerId = "o", Organizer = new User { Id = "o", FullName = "Host" }, ImageUrl = "u", Highlights = [],
+        };
+
+        var dto = EventListItemDto.FromEntity(ev);
+
+        Assert.Equal(0, dto.TotalQuantity);
+        Assert.Equal(0, dto.RemainingQuantity);
     }
 
     [Fact]
