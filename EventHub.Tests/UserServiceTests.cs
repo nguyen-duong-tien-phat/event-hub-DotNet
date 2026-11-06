@@ -31,6 +31,20 @@ public class UserServiceTests {
         _userRepo.Verify(r => r.TryAddAsync(It.Is<User>(u => u.Email == "an@mail.test")), Times.Once);
     }
 
+    [Theory]
+    [InlineData(UserRole.Organizer, UserRole.Organizer)]
+    [InlineData(UserRole.Admin, UserRole.Admin)]
+    [InlineData(null, UserRole.Attendee)] // no role asked for: never anything above Attendee
+    public async Task CreateAsync_UsesTheRequestedRole_AndDefaultsToAttendee(UserRole? requested, UserRole expected) {
+        _userRepo.Setup(r => r.TryAddAsync(It.IsAny<User>())).ReturnsAsync(true);
+        var request = SignUp();
+        request.Role = requested;
+
+        var user = await CreateService().CreateAsync(request);
+
+        Assert.Equal(expected, user.Role);
+    }
+
     [Fact]
     public async Task CreateAsync_WhenTheEmailIsAlreadyTaken_Throws() {
         _userRepo.Setup(r => r.TryAddAsync(It.IsAny<User>())).ReturnsAsync(false);

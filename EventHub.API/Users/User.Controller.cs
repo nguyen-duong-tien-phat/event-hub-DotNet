@@ -31,6 +31,7 @@ public class UsersController(UserService userService): ControllerBase {
                 Email = dto.Email,
                 Password = dto.Password,
                 FullName = dto.FullName,
+                Role = dto.Role, // null: CreateAsync makes an Attendee
             });
             return Ok(UserResponseDto.FromEntity(user));
         } catch (EmailTakenException e) {

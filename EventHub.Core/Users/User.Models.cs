@@ -41,6 +41,11 @@ public class CreateUserDto {
 
     [Required, MinLength(8, ErrorMessage = "Password must be at least 8 characters")]
     public string Password { get; set; } = string.Empty;
+
+    /// <summary>Optional: left out, the account is an Attendee. Nullable on purpose: a default value would be 0, which is Admin.</summary>
+    [EnumDataType(typeof(UserRole))]
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public UserRole? Role { get; set; }
 }
 
 public class UserResponseDto {
