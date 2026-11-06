@@ -75,8 +75,10 @@ public class EventsController(EventService eventService, UploadService uploadSer
     [Authorize(Roles = "Admin, Organizer")]
     [HttpPost]
     public async Task<IActionResult> Create(CreateEventDto dto) {
-        var orgId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
+        var requestId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
+        var requestRole = Enum.Parse<UserRole>(User.FindFirst(ClaimTypes.Role)!.Value);
         try {
+            var orgId = await eventService.ResolveOrganizerAsync(requestId, requestRole, dto.OrganizerId);
             var newEvent = await eventService.CreateAsync(new CreateEventRequest {
                 Title = dto.Title,
                 Description = dto.Description,

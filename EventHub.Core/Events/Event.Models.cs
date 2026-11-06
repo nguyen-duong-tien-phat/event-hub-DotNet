@@ -153,6 +153,9 @@ public class CreateEventDto
     
     [Required(ErrorMessage = "ImageUrl is required")]
     public required string ImageUrl { get; set; }
+
+    /// <summary>Admin only: create the event for this organizer. Left out, the event is the caller's own.</summary>
+    public string? OrganizerId { get; set; }
     
     public List<string> Highlights { get; set; } = [];
 

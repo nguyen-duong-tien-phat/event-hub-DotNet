@@ -12,7 +12,7 @@ namespace EventHub.Users;
 public class UsersController(UserService userService): ControllerBase {
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] UserQuery query) {
-        var result = await userService.GetPagedAsync(query.Page, query.PageSize, query.Search, query.IsActive);
+        var result = await userService.GetPagedAsync(query.Page, query.PageSize, query.Search, query.IsActive, query.Role);
         var response = result.Map(UserResponseDto.FromEntity);
         return Ok(response);
     }

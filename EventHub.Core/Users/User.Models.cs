@@ -30,6 +30,9 @@ public class UserQuery : EventHub.Core.Common.PaginationQuery {
 
     /// <summary>true: only active accounts; false: only blocked ones; left out: both.</summary>
     public bool? IsActive { get; set; }
+
+    /// <summary>Only accounts with this role; the dashboard uses it to list the organizers an admin can pick.</summary>
+    public UserRole? Role { get; set; }
 }
 
 public class CreateUserDto {

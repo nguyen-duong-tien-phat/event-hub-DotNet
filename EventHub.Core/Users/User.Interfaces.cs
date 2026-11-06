@@ -11,7 +11,7 @@ public interface IUserRepository : IRepository<User> {
 
     /// <summary>
     /// One page of users, newest first, optionally only those whose name or email contains <paramref name="search"/>
-    /// and only active (true) or blocked (false) accounts.
+    /// only active (true) or blocked (false) accounts, and only accounts with <paramref name="role"/>.
     /// </summary>
-    Task<(List<User> Items, int TotalCount)> SearchPagedAsync(string? search, bool? isActive, int page, int pageSize);
+    Task<(List<User> Items, int TotalCount)> SearchPagedAsync(string? search, bool? isActive, UserRole? role, int page, int pageSize);
 }

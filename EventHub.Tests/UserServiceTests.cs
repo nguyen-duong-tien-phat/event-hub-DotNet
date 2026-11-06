@@ -139,10 +139,10 @@ public class UserServiceTests {
 
     [Fact]
     public async Task GetPagedAsync_PassesTheSearchAndTheActiveFilterToTheRepository() {
-        _userRepo.Setup(r => r.SearchPagedAsync("an", false, 2, 5)).ReturnsAsync(([], 0));
+        _userRepo.Setup(r => r.SearchPagedAsync("an", false, UserRole.Organizer, 2, 5)).ReturnsAsync(([], 0));
 
-        await CreateService().GetPagedAsync(2, 5, "an", isActive: false);
+        await CreateService().GetPagedAsync(2, 5, "an", isActive: false, role: UserRole.Organizer);
 
-        _userRepo.Verify(r => r.SearchPagedAsync("an", false, 2, 5), Times.Once);
+        _userRepo.Verify(r => r.SearchPagedAsync("an", false, UserRole.Organizer, 2, 5), Times.Once);
     }
 }

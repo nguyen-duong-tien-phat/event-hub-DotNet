@@ -14,7 +14,8 @@ public class EventService(
     ITicketRepository ticketRepository,
     IBookingRepository bookingRepository,
     ICacheService cache,
-    UploadService uploads)
+    UploadService uploads,
+    IUserRepository userRepository)
 {
     public const string CacheKeyPrefix = "events:";
     
@@ -115,6 +116,23 @@ public class EventService(
     public async Task<List<Event>> GetUpcomingEventsAsync(int limit) =>
         await eventRepository.GetUpcomingEventsAsync(limit);
 
+
+    /// <summary>
+    /// Whose event is being created. Anyone creates their own; only an admin may name someone else,
+    /// who must be an active Organizer or Admin account.
+    /// </summary>
+    /// <exception cref="UnauthorizedAccessException">A non-admin asked for another organizer.</exception>
+    /// <exception cref="ArgumentException">The named account cannot own events.</exception>
+    public async Task<string> ResolveOrganizerAsync(string requestId, UserRole requestRole, string? organizerId) {
+        if (string.IsNullOrWhiteSpace(organizerId) || organizerId == requestId) return requestId;
+        if (requestRole != UserRole.Admin) throw new UnauthorizedAccessException("Only an admin can create an event for someone else.");
+
+        var organizer = await userRepository.GetByIdAsync(organizerId);
+        if (organizer is not { IsActive: true } || organizer.Role == UserRole.Attendee) {
+            throw new ArgumentException("The organizer must be an active Organizer or Admin account.");
+        }
+        return organizer.Id;
+    }
 
     public async Task<Event> CreateAsync(CreateEventRequest request) {
         var newEvent = new Event {

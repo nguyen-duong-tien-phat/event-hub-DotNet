@@ -13,9 +13,10 @@ public class UserRepository(AppDbContext db): Repository<User>(db), IUserReposit
     }
 
     // shortcut: a LIKE '%text%' scan, fine for thousands of users; add a pg_trgm index if the table grows far beyond that.
-    public async Task<(List<User> Items, int TotalCount)> SearchPagedAsync(string? search, bool? isActive, int page, int pageSize) {
+    public async Task<(List<User> Items, int TotalCount)> SearchPagedAsync(string? search, bool? isActive, UserRole? role, int page, int pageSize) {
         var query = DbSet.AsNoTracking();
         if (isActive != null) query = query.Where(u => u.IsActive == isActive.Value);
+        if (role != null) query = query.Where(u => u.Role == role.Value);
         if (!string.IsNullOrWhiteSpace(search)) {
             var text = search.Trim().ToLowerInvariant();
             query = query.Where(u => u.Email.ToLower().Contains(text) || u.FullName.ToLower().Contains(text));

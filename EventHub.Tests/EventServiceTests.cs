@@ -14,12 +14,13 @@ public class EventServiceTests {
     private readonly Mock<ICacheService> _cache = new();
     private readonly Mock<IBookingRepository> _bookingRepo = new();
     private readonly Mock<IFileStorage> _storage = new();
+    private readonly Mock<IUserRepository> _userRepo = new();
 
     private const string UploadedImage = "https://files.test/events/images/a.jpg";
 
     private EventService CreateService() {
         _storage.Setup(s => s.PublicUrl(It.IsAny<string>())).Returns((string key) => $"https://files.test/{key}");
-        return new(_eventRepo.Object, _ticketRepo.Object, _bookingRepo.Object, _cache.Object, new UploadService(_storage.Object));
+        return new(_eventRepo.Object, _ticketRepo.Object, _bookingRepo.Object, _cache.Object, new UploadService(_storage.Object), _userRepo.Object);
     }
 
     private static CreateEventRequest NewRequest(Action<CreateEventRequest>? tweak = null) {
@@ -372,6 +373,46 @@ public class EventServiceTests {
 
         Assert.Equal(0, dto.TotalQuantity);
         Assert.Equal(0, dto.RemainingQuantity);
+    }
+
+    private void GivenAccount(string id, UserRole role, bool isActive = true) =>
+        _userRepo.Setup(r => r.GetByIdAsync(id)).ReturnsAsync(new User { Id = id, Role = role, IsActive = isActive });
+
+    [Theory]
+    [InlineData(UserRole.Organizer, null)]
+    [InlineData(UserRole.Organizer, "me")] // naming yourself is the same as leaving it out
+    [InlineData(UserRole.Admin, null)]
+    [InlineData(UserRole.Admin, "me")]
+    public async Task ResolveOrganizer_WithoutAnotherAccount_IsTheCaller(UserRole role, string? asked) {
+        Assert.Equal("me", await CreateService().ResolveOrganizerAsync("me", role, asked));
+    }
+
+    [Fact]
+    public async Task ResolveOrganizer_AnAdminMayNameAnActiveOrganizerOrAdmin() {
+        GivenAccount("org_1", UserRole.Organizer);
+        GivenAccount("adm_2", UserRole.Admin);
+
+        Assert.Equal("org_1", await CreateService().ResolveOrganizerAsync("me", UserRole.Admin, "org_1"));
+        Assert.Equal("adm_2", await CreateService().ResolveOrganizerAsync("me", UserRole.Admin, "adm_2"));
+    }
+
+    [Fact]
+    public async Task ResolveOrganizer_AnOrganizerCannotCreateForSomeoneElse() {
+        GivenAccount("org_1", UserRole.Organizer);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => CreateService().ResolveOrganizerAsync("me", UserRole.Organizer, "org_1"));
+    }
+
+    [Fact]
+    public async Task ResolveOrganizer_RefusesAnAttendeeABlockedAccountAndAnUnknownId() {
+        GivenAccount("att_1", UserRole.Attendee);
+        GivenAccount("org_blocked", UserRole.Organizer, isActive: false);
+        _userRepo.Setup(r => r.GetByIdAsync("nobody")).ReturnsAsync((User?)null);
+
+        foreach (var id in new[] { "att_1", "org_blocked", "nobody" }) {
+            await Assert.ThrowsAsync<ArgumentException>(() => CreateService().ResolveOrganizerAsync("me", UserRole.Admin, id));
+        }
     }
 
     [Fact]

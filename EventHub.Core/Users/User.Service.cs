@@ -11,8 +11,8 @@ public class UserService(
     IPasswordHasher<User> passwordHasher,
     IRefreshTokenRepository refreshTokens) 
 {
-    public async Task<PagedResult<User>> GetPagedAsync(int page, int pageSize, string? search = null, bool? isActive = null) {
-        var (items, totalCount) = await userRepository.SearchPagedAsync(search, isActive, page, pageSize);
+    public async Task<PagedResult<User>> GetPagedAsync(int page, int pageSize, string? search = null, bool? isActive = null, UserRole? role = null) {
+        var (items, totalCount) = await userRepository.SearchPagedAsync(search, isActive, role, page, pageSize);
         return new PagedResult<User> {
             Items = items,
             Page = page,
