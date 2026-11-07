@@ -17,7 +17,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options): DbContext(opt
     public DbSet<SavedEvent> SavedEvents => Set<SavedEvent>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<PasswordResetCode> PasswordResetCodes => Set<PasswordResetCode>();
-    public DbSet<TicketCheckIn> TicketCheckIns => Set<TicketCheckIn>();
+    public DbSet<Admission> Admissions => Set<Admission>();
     
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) {
         var entries = ChangeTracker.Entries<BaseEntity>()
@@ -89,9 +89,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options): DbContext(opt
         modelBuilder.Entity<PasswordResetCode>().Property(c => c.Id).ValueGeneratedNever();
         modelBuilder.Entity<PasswordResetCode>().HasIndex(c => c.UserId);
 
-        // A ticket gets in once: this pair is unique.
-        modelBuilder.Entity<TicketCheckIn>().Property(c => c.Id).ValueGeneratedNever();
-        modelBuilder.Entity<TicketCheckIn>().HasIndex(c => new { c.BookingId, c.Number }).IsUnique();
+        modelBuilder.Entity<Admission>().Property(a => a.Id).ValueGeneratedNever();
+        modelBuilder.Entity<Admission>().HasIndex(a => a.Code).IsUnique(); // the short code finds exactly one ticket
+        modelBuilder.Entity<Admission>().HasIndex(a => a.BookingId);
 
         modelBuilder.Entity<SavedEvent>().Property(s => s.Id).ValueGeneratedNever();
         modelBuilder.Entity<SavedEvent>()

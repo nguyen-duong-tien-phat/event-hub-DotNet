@@ -14,6 +14,7 @@ public class BookingFlowTests {
     private readonly Mock<IEventRepository> _eventRepo = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Mock<IPaymentService> _payment = new();
+    private readonly Mock<IAdmissionRepository> _admissions = new();
 
     public BookingFlowTests() {
         _ticketRepo.Setup(r => r.TryReserveAsync(It.IsAny<List<BookingTicket>>())).ReturnsAsync(true);
@@ -25,7 +26,7 @@ public class BookingFlowTests {
     private static readonly TicketCodeSigner Signer = new("test-secret-key-for-ticket-codes");
 
     private BookingService CreateService() =>
-        new(_bookingRepo.Object, _ticketRepo.Object, _eventRepo.Object, _unitOfWork.Object, _payment.Object, Signer);
+        new(_bookingRepo.Object, _ticketRepo.Object, _eventRepo.Object, _unitOfWork.Object, _payment.Object, Signer, _admissions.Object);
 
     private void GivenTicket(string id, decimal price, string eventId = "event_1", int maxPerOrder = 4, string type = "General") =>
         _ticketRepo.Setup(r => r.GetByIdAsync(id)).ReturnsAsync(new Ticket {
@@ -498,30 +499,59 @@ public class BookingFlowTests {
         Assert.Null(dto.ClientSecret);
     }
 
+    private static Admission AdmissionOf(Booking booking, string type, DateTime? checkedInAt = null, string? by = null) =>
+        new() { BookingId = booking.Id, TicketId = "t1", TicketType = type, CheckedInAt = checkedInAt, CheckedInBy = by };
+
+    private void GivenAdmissions(Booking booking, params AdmissionRow[] rows) =>
+        _admissions.Setup(r => r.ListByBookingIdsAsync(It.Is<IEnumerable<string>>(ids => ids.Contains(booking.Id)))).ReturnsAsync(rows.ToList());
+
     [Fact]
-    public async Task ToResponseAsync_ConfirmedBooking_HasOneSignedCodePerTicket() {
+    public async Task ToResponseAsync_ConfirmedBooking_ListsItsAdmissionsWithASignedQrAndTheCheckInState() {
         var booking = new Booking {
             EventId = "event_1", UserId = "user_1", Status = BookingStatus.Confirmed,
-            Tickets = [
-                new BookingTicket { TicketId = "t1", Quantity = 2 },
-                new BookingTicket { TicketId = "t2", Quantity = 1 },
-            ],
+            Tickets = [new BookingTicket { TicketId = "t1", Quantity = 2 }],
         };
+        var used = new DateTime(2030, 1, 1, 18, 0, 0, DateTimeKind.Utc);
+        GivenAdmissions(booking,
+            new AdmissionRow(AdmissionOf(booking, "General", used, "staff_1"), "Linh"),
+            new AdmissionRow(AdmissionOf(booking, "General"), null));
 
         var dto = await CreateService().ToResponseAsync(booking);
 
-        Assert.Equal(3, dto.TicketCodes.Count);
-        for (var i = 0; i < 3; i++) {
-            Assert.True(Signer.TryVerify(dto.TicketCodes[i], out var id, out var number));
-            Assert.Equal(booking.Id, id);
-            Assert.Equal(i + 1, number);
-        }
+        Assert.Equal(2, dto.Admissions.Count);
+        Assert.All(dto.Admissions, a => {
+            Assert.True(Signer.TryVerify(a.Code, out var id));
+            Assert.Equal(a.Id, id);
+            Assert.Equal(8, a.ShortCode.Length);
+        });
+        Assert.Equal(used, dto.Admissions[0].CheckedInAt);
+        Assert.Equal("Linh", dto.Admissions[0].CheckedInBy!.FullName);
+        Assert.Null(dto.Admissions[1].CheckedInAt);
+        Assert.Equal(1, dto.CheckedInCount);
+        Assert.False(dto.CanCancel); // one ticket already got in
+    }
+
+    [Fact]
+    public async Task ToResponseAsync_ConfirmedBookingWithoutAdmissions_GetsThemIssuedOnRead() {
+        var booking = new Booking {
+            EventId = "event_1", UserId = "user_1", Status = BookingStatus.Confirmed,
+            Tickets = [new BookingTicket { TicketId = "t1", Quantity = 1 }],
+        };
+        _admissions.SetupSequence(r => r.ListByBookingIdsAsync(It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync([])
+            .ReturnsAsync([new AdmissionRow(AdmissionOf(booking, "General"), null)]);
+
+        var dto = await CreateService().ToResponseAsync(booking);
+
+        _admissions.Verify(r => r.IssueAsync(booking), Times.Once);
+        Assert.Single(dto.Admissions);
+        Assert.True(dto.CanCancel);
     }
 
     [Theory]
-    [InlineData(BookingStatus.Pending)]
-    [InlineData(BookingStatus.Cancelled)]
-    public async Task ToResponseAsync_UnpaidOrCancelledBooking_HasNoCodes(BookingStatus status) {
+    [InlineData(BookingStatus.Pending, true)]
+    [InlineData(BookingStatus.Cancelled, false)]
+    public async Task ToResponseAsync_UnpaidOrCancelledBooking_HasNoAdmissions(BookingStatus status, bool canCancel) {
         var booking = new Booking {
             EventId = "event_1", UserId = "user_1", Status = status,
             Tickets = [new BookingTicket { TicketId = "t1", Quantity = 2 }],
@@ -529,7 +559,55 @@ public class BookingFlowTests {
 
         var dto = await CreateService().ToResponseAsync(booking);
 
-        Assert.Empty(dto.TicketCodes);
+        Assert.Empty(dto.Admissions);
+        Assert.Equal(canCancel, dto.CanCancel);
+        _admissions.Verify(r => r.IssueAsync(It.IsAny<Booking>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("user_1", UserRole.Attendee)]
+    [InlineData("admin_1", UserRole.Admin)]
+    public async Task CancelAsync_AfterATicketGotIn_IsRefused_NothingRefundedOrReleased(string who, UserRole role) {
+        var booking = BookingWithIntent(BookingStatus.Confirmed);
+        _admissions.Setup(r => r.AnyCheckedInAsync(booking.Id)).ReturnsAsync(true);
+        _eventRepo.Setup(r => r.GetByIdAsync("event_1")).ReturnsAsync(new Event {
+            Id = "event_1", Title = "T", Description = "D", Location = "L", OrganizerId = "org_1",
+            ImageUrl = "u", Highlights = [], StartsAt = DateTime.UtcNow.AddDays(1),
+        });
+
+        await Assert.ThrowsAsync<BookingCheckedInException>(() => CreateService().CancelAsync(booking.Id, who, role));
+
+        Assert.Equal(BookingStatus.Confirmed, booking.Status);
+        VerifyRefunded(booking, Times.Never);
+        _ticketRepo.Verify(r => r.ReleaseAsync(It.IsAny<List<BookingTicket>>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ConfirmPaymentAsync_IssuesTheAdmissions() {
+        var booking = BookingWithIntent(BookingStatus.Pending);
+        _payment.Setup(p => p.IsPaymentSucceededAsync("pi_1")).ReturnsAsync(true);
+
+        await CreateService().ConfirmPaymentAsync(booking.Id, "user_1");
+
+        _admissions.Verify(r => r.IssueAsync(booking), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandlePaymentSucceeded_IssuesTheAdmissions() {
+        var booking = BookingWithIntent(BookingStatus.Pending);
+
+        await CreateService().HandlePaymentSucceeded("pi_1");
+
+        _admissions.Verify(r => r.IssueAsync(booking), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateAsync_FreeBooking_IssuesTheAdmissionsAtOnce() {
+        GivenTicket("t_free", 0m);
+
+        var result = await CreateService().CreateAsync(Request("t_free", 2));
+
+        _admissions.Verify(r => r.IssueAsync(result!.Booking), Times.Once);
     }
 
     [Fact]

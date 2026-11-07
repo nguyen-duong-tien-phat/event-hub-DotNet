@@ -19,7 +19,7 @@ public class CheckInDto {
 [Authorize(Roles = "Admin, Organizer")]
 public class CheckInController(CheckInService checkInService) : ControllerBase {
     /// <summary>
-    /// Scans a ticket's QR. The status code tells the scanner what to show: 200 let them in,
+    /// Scans a ticket's QR, or takes the short code typed by hand. The status code tells the scanner what to show: 200 let them in,
     /// 409 already used or not paid, 400 not a real ticket, 403 not your event.
     /// </summary>
     [HttpPost]
@@ -32,7 +32,8 @@ public class CheckInController(CheckInService checkInService) : ControllerBase {
             status = result.Status.ToString(),
             eventTitle = result.EventTitle,
             ticketType = result.TicketType,
-            number = result.Number,
+            admissionId = result.AdmissionId,
+            shortCode = result.ShortCode,
             checkedInAt = result.CheckedInAt,
         };
 

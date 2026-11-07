@@ -24,13 +24,16 @@ public class ExpiryResult {
 
 public class BookingInProgressException() : Exception("This booking is still being created. Please retry in a moment.");
 
+public class BookingCheckedInException() : Exception("A ticket of this booking has already been used, so it cannot be cancelled.");
+
 public class BookingService (
     IBookingRepository bookingRepository, 
     ITicketRepository ticketRepository,
     IEventRepository eventRepository,
     IUnitOfWork unitOfWork,
     IPaymentService paymentService,
-    TicketCodeSigner? ticketCodes = null)
+    TicketCodeSigner? ticketCodes = null,
+    IAdmissionRepository? admissions = null)
 {
     /// <summary>How long a pending booking keeps its tickets before it can expire.</summary>
     public static readonly TimeSpan HoldDuration = TimeSpan.FromMinutes(15);
@@ -115,6 +118,7 @@ public class BookingService (
         }
         
         if (totalPrice == 0) {
+            await IssueAdmissionsAsync(booking);
             return new BookingWithPaymentResult { Booking = booking, ClientSecret = string.Empty };
         }
 
@@ -158,7 +162,7 @@ public class BookingService (
 
     /// <summary>The booking as sent to clients, with its event and ticket names.</summary>
     public async Task<BookingResponseDto> ToResponseAsync(Booking booking, string? clientSecret = null) =>
-        ToResponse(booking, await eventRepository.GetByIdAsync(booking.EventId), clientSecret);
+        ToResponse(booking, await eventRepository.GetByIdAsync(booking.EventId), await AdmissionsOfAsync([booking]), clientSecret);
 
     /// <summary>
     /// Several bookings at once. They are mapped one after another, never in parallel: the
@@ -166,21 +170,47 @@ public class BookingService (
     /// Each event is loaded once, however many bookings point at it.
     /// </summary>
     public async Task<List<BookingResponseDto>> ToResponsesAsync(IEnumerable<Booking> bookings) {
+        var list = bookings.ToList();
+        var byBooking = await AdmissionsOfAsync(list);
         var events = new Dictionary<string, Event?>();
         var responses = new List<BookingResponseDto>();
 
-        foreach (var booking in bookings) {
+        foreach (var booking in list) {
             if (!events.TryGetValue(booking.EventId, out var ev)) {
                 ev = await eventRepository.GetByIdAsync(booking.EventId);
                 events[booking.EventId] = ev;
             }
-            responses.Add(ToResponse(booking, ev));
+            responses.Add(ToResponse(booking, ev, byBooking));
         }
 
         return responses;
     }
 
-    private BookingResponseDto ToResponse(Booking booking, Event? ev, string? clientSecret = null) => new() {
+    private async Task IssueAdmissionsAsync(Booking booking) {
+        if (admissions != null) await admissions.IssueAsync(booking);
+    }
+
+    /// <summary>
+    /// The admissions of the confirmed bookings, in one query. A confirmed booking that has none yet (made before
+    /// admissions existed, or the issuing failed) gets them now.
+    /// </summary>
+    private async Task<Dictionary<string, List<AdmissionRow>>> AdmissionsOfAsync(List<Booking> bookings) {
+        var confirmed = bookings.Where(b => b.Status == BookingStatus.Confirmed).ToList();
+        if (admissions == null || confirmed.Count == 0) return [];
+
+        var found = (await admissions.ListByBookingIdsAsync(confirmed.Select(b => b.Id)))
+            .GroupBy(r => r.Admission.BookingId).ToDictionary(g => g.Key, g => g.ToList());
+        foreach (var booking in confirmed.Where(b => !found.ContainsKey(b.Id))) {
+            await admissions.IssueAsync(booking);
+            found[booking.Id] = await admissions.ListByBookingIdsAsync([booking.Id]);
+        }
+        return found;
+    }
+
+    private BookingResponseDto ToResponse(Booking booking, Event? ev, Dictionary<string, List<AdmissionRow>> admissionRows, string? clientSecret = null) {
+        var rows = admissionRows.GetValueOrDefault(booking.Id) ?? [];
+        var checkedIn = rows.Count(r => r.Admission.CheckedInAt != null);
+        return new() {
         Id = booking.Id,
         EventId = booking.EventId,
         Event = ev == null ? null : new BookingEventDto {
@@ -209,15 +239,20 @@ public class BookingService (
         },
         ExpiresAt = booking.CreatedAt + HoldDuration,
         ClientSecret = string.IsNullOrEmpty(clientSecret) ? null : clientSecret,
-        TicketCodes = TicketCodesFor(booking),
-    };
-
-    /// <summary>One signed QR code per admitted person, only once the booking is paid.</summary>
-    private List<string> TicketCodesFor(Booking booking) =>
-        ticketCodes == null || booking.Status != BookingStatus.Confirmed
-            ? []
-            : Enumerable.Range(1, booking.Tickets.Sum(t => t.Quantity))
-                .Select(n => ticketCodes.Sign(booking.Id, n)).ToList();
+        Admissions = rows.Select(r => new AdmissionDto {
+            Id = r.Admission.Id,
+            TicketType = r.Admission.TicketType,
+            Code = ticketCodes?.Sign(r.Admission.Id) ?? string.Empty,
+            ShortCode = r.Admission.Code,
+            CheckedInAt = r.Admission.CheckedInAt,
+            CheckedInBy = r.Admission.CheckedInBy == null ? null : new AdmissionStaffDto {
+                Id = r.Admission.CheckedInBy, FullName = r.StaffName ?? string.Empty,
+            },
+        }).ToList(),
+        CheckedInCount = checkedIn,
+        CanCancel = booking.Status != BookingStatus.Cancelled && checkedIn == 0,
+        };
+    }
 
     /// <summary>
     /// Asks Stripe whether the booking has been paid and confirms it if so. Lets the
@@ -237,6 +272,7 @@ public class BookingService (
             booking.Status = BookingStatus.Confirmed;
             bookingRepository.Update(booking);
             await bookingRepository.SaveChangesAsync();
+            await IssueAdmissionsAsync(booking);
         }
 
         if (booking.Status == BookingStatus.Cancelled) {
@@ -298,6 +334,23 @@ public class BookingService (
     }
     
     /// <summary>
+    /// Bookings the caller manages, optionally of one event and one status: every booking for an admin, those of their
+    /// own events for an organizer.
+    /// </summary>
+    /// <exception cref="UnauthorizedAccessException">Not an admin or organizer, or the event is not the organizer's.</exception>
+    public async Task<PagedResult<Booking>> GetManagedPagedAsync(string userId, UserRole userRole, string? eventId, BookingStatus? status, int page, int pageSize) {
+        if (userRole is not (UserRole.Admin or UserRole.Organizer)) throw new UnauthorizedAccessException();
+        if (userRole == UserRole.Organizer && eventId != null) {
+            var ev = await eventRepository.GetByIdAsync(eventId);
+            if (ev == null || ev.OrganizerId != userId) throw new UnauthorizedAccessException();
+        }
+
+        var (items, totalCount) = await bookingRepository.GetPagedAsync(
+            eventId, userRole == UserRole.Organizer ? userId : null, status, page, pageSize);
+        return new PagedResult<Booking> { Items = items, Page = page, PageSize = pageSize, TotalCount = totalCount };
+    }
+
+    /// <summary>
     /// Cancels a booking, releases its tickets and refunds it if it was paid. The buyer may cancel their own;
     /// an admin may cancel any, and an organizer those of their own events (the same rule as managing the event).
     /// </summary>
@@ -319,6 +372,11 @@ public class BookingService (
         // Return early: running on would give the tickets back a second time.
         if (booking.Status == BookingStatus.Cancelled) {
             return booking;
+        }
+
+        // A ticket that got in cannot be given back or refunded: check before anything changes.
+        if (admissions != null && await admissions.AnyCheckedInAsync(booking.Id)) {
+            throw new BookingCheckedInException();
         }
 
         await unitOfWork.BeginTransactionAsync();
@@ -392,6 +450,7 @@ public class BookingService (
         booking.Status = BookingStatus.Confirmed;
         bookingRepository.Update(booking);
         await bookingRepository.SaveChangesAsync();
+        await IssueAdmissionsAsync(booking);
     }
 
     public async Task HandlePaymentFailed(string paymentIntentId) {

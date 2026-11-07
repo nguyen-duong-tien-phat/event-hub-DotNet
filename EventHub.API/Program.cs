@@ -159,7 +159,8 @@ if (string.IsNullOrEmpty(ticketSecret))
     throw new InvalidOperationException("Tickets__Secret is not configured.");
 builder.Services.AddSingleton(new TicketCodeSigner(ticketSecret));
 builder.Services.AddScoped<BookingService>();
-builder.Services.AddScoped<ICheckInRepository, CheckInRepository>();
+builder.Services.AddScoped<IAdmissionRepository, AdmissionRepository>();
+builder.Services.AddScoped<AdmissionService>();
 builder.Services.AddScoped<CheckInService>();
 builder.Services.AddScoped<ISavedEventRepository, SavedEventRepository>();
 builder.Services.AddScoped<SavedEventService>();

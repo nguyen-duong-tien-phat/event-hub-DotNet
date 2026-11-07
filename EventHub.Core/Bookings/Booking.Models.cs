@@ -1,3 +1,4 @@
+using EventHub.Core.Common;
 using System.ComponentModel.DataAnnotations;
 
 namespace EventHub.Core.Bookings;
@@ -20,6 +21,11 @@ public class BookingWithPaymentResult {
 }
 
 // DTOs
+public class ManagedBookingsQuery : PaginationQuery {
+    public string? EventId { get; set; }
+    public BookingStatus? Status { get; set; }
+}
+
 public class BookingTicketDto {
     public required string TicketId { get; set; }
     public int Quantity { get; set; }
@@ -74,8 +80,13 @@ public class BookingResponseDto {
     /// <summary>While the booking is pending, the tickets are held until this time.</summary>
     public DateTime ExpiresAt { get; set; }
 
-    /// <summary>Signed QR codes, one per ticket, numbered from 1. Empty until the booking is confirmed.</summary>
-    public List<string> TicketCodes { get; set; } = [];
+    /// <summary>One entry per admitted person, with the QR value and whether they got in. Empty until the booking is confirmed.</summary>
+    public List<AdmissionDto> Admissions { get; set; } = [];
+
+    public int CheckedInCount { get; set; }
+
+    /// <summary>False once the booking is cancelled or any of its tickets has been used.</summary>
+    public bool CanCancel { get; set; }
 
     /// <summary>Stripe client secret to pay with. Only set when the booking is created.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]

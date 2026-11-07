@@ -86,6 +86,26 @@ public class BookingsController(BookingService bookingService, IRateLimiter rate
         });
     }
     
+    /// <summary>The bookings the caller manages (all for an admin, those of their events for an organizer), filtered by event and status.</summary>
+    [Authorize(Roles = "Admin, Organizer")]
+    [HttpGet("managed")]
+    public async Task<IActionResult> GetManaged([FromQuery] ManagedBookingsQuery query) {
+        var requestId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
+        var requestRole = Enum.Parse<UserRole>(User.FindFirst(ClaimTypes.Role)!.Value);
+
+        try {
+            var result = await bookingService.GetManagedPagedAsync(requestId, requestRole, query.EventId, query.Status, query.Page, query.PageSize);
+            return Ok(new PagedResult<BookingResponseDto> {
+                Items = await bookingService.ToResponsesAsync(result.Items),
+                Page = result.Page,
+                PageSize = result.PageSize,
+                TotalCount = result.TotalCount
+            });
+        } catch (UnauthorizedAccessException) {
+            return Forbid();
+        }
+    }
+
     [Authorize(Roles = "Admin, Organizer")]
     [HttpGet("by-event/{eventId}")]
     public async Task<IActionResult> GetByEvent([FromQuery] PaginationQuery query, string eventId) {
@@ -135,6 +155,9 @@ public class BookingsController(BookingService bookingService, IRateLimiter rate
         }
         catch (UnauthorizedAccessException) {
             return Forbid();
+        }
+        catch (BookingCheckedInException ex) {
+            return Conflict(new { message = ex.Message });
         }
         catch (InvalidOperationException ex) {
             return BadRequest(new { message = ex.Message });

@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using EventHub.Core.Bookings;
 using EventHub.Core.Common;
 using EventHub.Core.Events;
 using EventHub.Core.Files;
@@ -11,7 +12,7 @@ namespace EventHub.Events;
 
 [ApiController]
 [Route("events")]
-public class EventsController(EventService eventService, UploadService uploadService) : ControllerBase {
+public class EventsController(EventService eventService, UploadService uploadService, AdmissionService admissionService) : ControllerBase {
     /// <summary>Returns a presigned URL to PUT a poster to, and the imageUrl to send when creating the event.</summary>
     [Authorize(Roles = "Admin, Organizer")]
     [HttpPost("image-upload")]
@@ -124,6 +125,32 @@ public class EventsController(EventService eventService, UploadService uploadSer
         try {
             var stats = await eventService.GetStatsAsync(requestId, requestRole, id);
             return stats == null ? NotFound() : Ok(stats);
+        } catch (UnauthorizedAccessException) {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Who holds a ticket to the event and whether they got in. The event's organizer or an admin.</summary>
+    [Authorize(Roles = "Admin, Organizer")]
+    [HttpGet("{id}/admissions")]
+    public async Task<IActionResult> GetAdmissions(string id, [FromQuery] AdmissionsQuery query) {
+        var requestId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
+        var requestRole = Enum.Parse<UserRole>(User.FindFirst(ClaimTypes.Role)!.Value);
+
+        try {
+            var result = await admissionService.GetPagedByEventAsync(requestId, requestRole, id, query.CheckedIn, query.Search, query.Page, query.PageSize);
+            if (result == null) return NotFound();
+            return Ok(result.Map(r => new EventAdmissionDto {
+                Id = r.Admission.Id,
+                TicketType = r.Admission.TicketType,
+                ShortCode = r.Admission.Code,
+                CheckedInAt = r.Admission.CheckedInAt,
+                CheckedInBy = r.Admission.CheckedInBy == null ? null : new AdmissionStaffDto {
+                    Id = r.Admission.CheckedInBy, FullName = r.StaffName ?? string.Empty,
+                },
+                BookingId = r.Admission.BookingId,
+                Buyer = new BookingBuyerDto { Id = r.Buyer.Id, FullName = r.Buyer.FullName, Email = r.Buyer.Email },
+            }));
         } catch (UnauthorizedAccessException) {
             return Forbid();
         }

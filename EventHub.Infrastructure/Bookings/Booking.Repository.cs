@@ -1,4 +1,5 @@
 using EventHub.Core.Bookings;
+using EventHub.Core.Events;
 using EventHub.Infrastructure.Common;
 using EventHub.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -38,7 +39,7 @@ public class BookingRepository(AppDbContext db) : Repository<Booking>(db), IBook
             .Where(b => b.Status == BookingStatus.Confirmed)
             .Select(b => b.Tickets)
             .ToListAsync();
-        var checkedIn = await db.TicketCheckIns.CountAsync(c => forEvent.Any(b => b.Id == c.BookingId));
+        var checkedIn = await db.Admissions.CountAsync(a => a.CheckedInAt != null && forEvent.Any(b => b.Id == a.BookingId));
 
         int CountOf(BookingStatus status) => byStatus.FirstOrDefault(x => x.Status == status)?.Count ?? 0;
         var confirmed = byStatus.FirstOrDefault(x => x.Status == BookingStatus.Confirmed);
@@ -66,6 +67,24 @@ public class BookingRepository(AppDbContext db) : Repository<Booking>(db), IBook
         var totalCount = await query.CountAsync();
         var items = await query
             .Include(b => b.User) // the organizer's list shows who bought; one JOIN, not a query per booking
+            .OrderByDescending(b => b.CreatedAt).ThenBy(b => b.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return (items, totalCount);
+    }
+
+    public async Task<(List<Booking> Items, int TotalCount)> GetPagedAsync(string? eventId, string? organizerId, BookingStatus? status, int page, int pageSize) {
+        var query = DbSet.AsQueryable();
+        if (eventId != null) query = query.Where(b => b.EventId == eventId);
+        // Booking.EventId has no navigation (and no foreign key), so ask the Events table.
+        if (organizerId != null) query = query.Where(b => db.Set<Event>().Any(e => e.Id == b.EventId && e.OrganizerId == organizerId));
+        if (status != null) query = query.Where(b => b.Status == status.Value);
+
+        var totalCount = await query.CountAsync();
+        var items = await query
+            .Include(b => b.User)
             .OrderByDescending(b => b.CreatedAt).ThenBy(b => b.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)

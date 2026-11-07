@@ -94,6 +94,49 @@ namespace EventHub.Infrastructure.Migrations
                     b.ToTable("RefreshTokens");
                 });
 
+            modelBuilder.Entity("EventHub.Core.Bookings.Admission", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BookingId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("CheckedInAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CheckedInBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TicketId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TicketType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookingId");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Admissions");
+                });
+
             modelBuilder.Entity("EventHub.Core.Bookings.Booking", b =>
                 {
                     b.Property<string>("Id")
@@ -152,36 +195,6 @@ namespace EventHub.Infrastructure.Migrations
                         .HasFilter("\"IdempotencyKey\" IS NOT NULL");
 
                     b.ToTable("Bookings");
-                });
-
-            modelBuilder.Entity("EventHub.Core.Bookings.TicketCheckIn", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("text");
-
-                    b.Property<string>("BookingId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("CheckedInBy")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Number")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BookingId", "Number")
-                        .IsUnique();
-
-                    b.ToTable("TicketCheckIns");
                 });
 
             modelBuilder.Entity("EventHub.Core.Events.Event", b =>

@@ -3,16 +3,6 @@ using EventHub.Core.Users;
 
 namespace EventHub.Core.Bookings;
 
-public interface ICheckInRepository {
-    /// <summary>
-    /// Records the ticket as used. Returns false when it already was, even if another scan
-    /// is doing the same at this very moment: the database lets only one of them win.
-    /// </summary>
-    Task<bool> TryAddAsync(TicketCheckIn checkIn);
-
-    Task<TicketCheckIn?> GetAsync(string bookingId, int number);
-}
-
 public enum CheckInStatus {
     Admitted,
     AlreadyUsed,
@@ -27,9 +17,10 @@ public class CheckInResult {
     public CheckInStatus Status { get; init; }
     public string? EventTitle { get; init; }
     public string? TicketType { get; init; }
-    public int Number { get; init; }
+    public string? AdmissionId { get; init; }
+    public string? ShortCode { get; init; }
 
-    /// <summary>For <see cref="CheckInStatus.AlreadyUsed"/>: when it first got in.</summary>
+    /// <summary>When the ticket got in: now for <see cref="CheckInStatus.Admitted"/>, the first scan for <see cref="CheckInStatus.AlreadyUsed"/>.</summary>
     public DateTime? CheckedInAt { get; init; }
 }
 
@@ -37,22 +28,19 @@ public class CheckInService(
     TicketCodeSigner signer,
     IBookingRepository bookingRepository,
     IEventRepository eventRepository,
-    ICheckInRepository checkIns)
+    IAdmissionRepository admissions)
 {
+    /// <param name="code">The QR value, or the short code typed by hand.</param>
     public async Task<CheckInResult> CheckInAsync(string? code, string staffId, UserRole staffRole) {
-        if (!signer.TryVerify(code, out var bookingId, out var number)) {
-            return new CheckInResult { Status = CheckInStatus.Invalid };
-        }
+        var admission = signer.TryVerify(code?.Trim(), out var id) ? await admissions.FindByIdAsync(id)
+            : Admission.NormalizeCode(code) is { } typed ? await admissions.FindByCodeAsync(typed)
+            : null;
+        if (admission == null) return new CheckInResult { Status = CheckInStatus.Invalid };
 
-        // A valid signature only proves we made the code. The booking is still the truth.
-        var booking = await bookingRepository.GetByIdAsync(bookingId);
-        var type = booking == null ? null : TicketTypeOf(booking, number);
-        if (booking == null || type == null) {
-            return new CheckInResult { Status = CheckInStatus.Invalid };
-        }
-
-        var ev = await eventRepository.GetByIdAsync(booking.EventId);
-        if (ev == null) return new CheckInResult { Status = CheckInStatus.Invalid };
+        // A valid code only proves we made it. The booking is still the truth.
+        var booking = await bookingRepository.GetByIdAsync(admission.BookingId);
+        var ev = booking == null ? null : await eventRepository.GetByIdAsync(booking.EventId);
+        if (booking == null || ev == null) return new CheckInResult { Status = CheckInStatus.Invalid };
 
         // An organizer only admits people to their own events.
         if (staffRole != UserRole.Admin && ev.OrganizerId != staffId) {
@@ -60,30 +48,15 @@ public class CheckInService(
         }
 
         var result = (CheckInStatus status, DateTime? at) => new CheckInResult {
-            Status = status, EventTitle = ev.Title, TicketType = type, Number = number, CheckedInAt = at,
+            Status = status, EventTitle = ev.Title, TicketType = admission.TicketType,
+            AdmissionId = admission.Id, ShortCode = admission.Code, CheckedInAt = at,
         };
 
         if (booking.Status != BookingStatus.Confirmed) return result(CheckInStatus.NotPaid, null);
 
-        var added = await checkIns.TryAddAsync(new TicketCheckIn {
-            BookingId = booking.Id, Number = number, CheckedInBy = staffId,
-        });
-        if (added) return result(CheckInStatus.Admitted, null);
+        if (await admissions.TryCheckInAsync(admission.Id, staffId)) return result(CheckInStatus.Admitted, DateTime.UtcNow);
 
-        var first = await checkIns.GetAsync(booking.Id, number);
-        return result(CheckInStatus.AlreadyUsed, first?.CreatedAt);
-    }
-
-    /// <summary>
-    /// Ticket numbers run across the booking's types in order: "2 × General, 1 × VIP" makes
-    /// 1 and 2 General, 3 VIP. Null when the number is past the last ticket.
-    /// </summary>
-    private static string? TicketTypeOf(Booking booking, int number) {
-        var seen = 0;
-        foreach (var item in booking.Tickets) {
-            seen += item.Quantity;
-            if (number <= seen) return item.TicketType;
-        }
-        return null;
+        var first = await admissions.FindByIdAsync(admission.Id);
+        return result(CheckInStatus.AlreadyUsed, first?.CheckedInAt);
     }
 }
