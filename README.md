@@ -17,7 +17,7 @@
 - **Real payments.** Stripe PaymentIntents, signature-verified webhooks, idempotent confirmation, and automatic refunds when a payment lands after the booking expired.
 - **Safe to retry.** Per-user idempotency keys mean a double-click or network retry returns the original booking instead of creating a second one.
 - **Production-style auth.** Short-lived JWTs, rotating refresh tokens with reuse detection, rate-limited login, and email-code password reset.
-- **Tamper-proof QR check-in.** HMAC-signed ticket codes, each admitted exactly once at the door.
+- **Tamper-proof QR check-in.** Every admitted person is their own ticket row with a random id, an HMAC-signed QR and a short code to type when a QR will not scan. Check-in is one atomic update, so a ticket gets in exactly once, and a booking with a used ticket can no longer be cancelled.
 - **Images that skip the server.** Organizers upload posters straight to S3 with a short-lived presigned URL, so image bytes never pass through the API. Only URLs the API issued are accepted.
 
 ## Tech stack
@@ -37,9 +37,9 @@
 
 | Role | Can |
 |---|---|
-| **Attendee** | Browse events, book and pay, see their own bookings and ticket codes, save events |
-| **Organizer** | Everything on their own events: create, edit and delete them (not once booked), upload posters, manage ticket types (a ticket that has sold can't be deleted), see bookings with the buyer's name and email, cancel (and refund) them, see sales numbers per event (`GET /events/{id}/stats`), check tickets in |
-| **Admin** | The same on any event, plus search users (by name or email, active or blocked), set their roles and block or unblock accounts (an admin can do neither to themselves), and cancel any booking |
+| **Attendee** | Browse events, book and pay, see their own bookings, tickets and QR codes, save events |
+| **Organizer** | Everything on their own events: create, edit and delete them (not once booked), upload posters, manage ticket types (a ticket that has sold can't be deleted), see bookings with the buyer's name and email, cancel (and refund) them, see sales numbers per event (`GET /events/{id}/stats`), see who holds a ticket and who has already got in (`GET /events/{id}/admissions`), check tickets in by QR or short code, list bookings across their events |
+| **Admin** | The same on any event, plus create users (with a role) and events for any organizer, search users (by name or email, role, active or blocked), set their roles and block or unblock accounts (an admin can do neither to themselves), read a user's booking history, list the bookings of every event, and cancel any booking |
 
 ## Architecture
 
@@ -101,11 +101,11 @@ Postgres serializes writes to the row, so no read-then-write race exists. Versio
 ### 3. Tickets that can't be forged or reused
 
 **Problem:** a QR code anyone can guess or screenshot-replay is worthless.
-**Solution:** each admitted person gets an HMAC-signed code over `(bookingId, n)`. Check-in verifies the signature and records each `(booking, number)` once. The signing secret is deliberately separate from the JWT key, so a leaked JWT key can't mint tickets.
+**Solution:** each admitted person is a row in `Admissions` with a random id. Its QR is an HMAC-signed code over that id (and an 8 character short code stands in when the QR will not scan). Check-in verifies the signature and runs one `UPDATE ... WHERE "CheckedInAt" IS NULL`: the rows-affected count says whether this scan was the first. The signing secret is deliberately separate from the JWT key, so a leaked JWT key can't mint tickets.
 
 ## Results
 
-- **160+ automated tests** (xUnit + Moq) covering booking, payments, check-in, refresh tokens, password reset and cleanup jobs. CI builds and tests on every push.
+- **240+ automated tests** (xUnit + Moq) covering booking, payments, ticket issuing and check-in, refresh tokens, password reset and cleanup jobs. CI builds and tests on every push.
 - **Concurrency verified with k6:** 30 simultaneous booking requests against a ticket with known stock. Successes matched the remaining stock exactly, the rest received `409 Conflict`, and nothing oversold. See [`load-test.js`](load-test.js).
 - **What I learned:** pushing correctness into one atomic database statement is simpler and faster than coordinating it in application code, and keeping network calls out of transactions makes failure handling tractable.
 
@@ -120,6 +120,8 @@ docker compose up --build        # API :8080, Swagger :8080/swagger, Mailpit inb
 dotnet test                      # unit tests, no infrastructure needed
 k6 run load-test.js              # concurrency test (set a JWT and ticketId at the top first)
 ```
+
+After pulling new changes, apply the migrations (the container does not do it for you): `cd EventHub.Infrastructure && dotnet ef database update --startup-project ../EventHub.API`.
 
 For the Stripe webhook locally, run `stripe listen --forward-to localhost:8080/webhooks/stripe` and use the printed `whsec_...` as `Stripe__WebhookSecret`.
 

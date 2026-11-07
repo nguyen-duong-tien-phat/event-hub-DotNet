@@ -94,7 +94,7 @@ public class BookingsController(BookingService bookingService, IRateLimiter rate
         var requestRole = Enum.Parse<UserRole>(User.FindFirst(ClaimTypes.Role)!.Value);
 
         try {
-            var result = await bookingService.GetManagedPagedAsync(requestId, requestRole, query.EventId, query.Status, query.Page, query.PageSize);
+            var result = await bookingService.GetManagedPagedAsync(requestId, requestRole, query.EventId, query.UserId, query.Status, query.Page, query.PageSize);
             return Ok(new PagedResult<BookingResponseDto> {
                 Items = await bookingService.ToResponsesAsync(result.Items),
                 Page = result.Page,

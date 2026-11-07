@@ -75,9 +75,10 @@ public class BookingRepository(AppDbContext db) : Repository<Booking>(db), IBook
         return (items, totalCount);
     }
 
-    public async Task<(List<Booking> Items, int TotalCount)> GetPagedAsync(string? eventId, string? organizerId, BookingStatus? status, int page, int pageSize) {
+    public async Task<(List<Booking> Items, int TotalCount)> GetPagedAsync(string? eventId, string? organizerId, string? userId, BookingStatus? status, int page, int pageSize) {
         var query = DbSet.AsQueryable();
         if (eventId != null) query = query.Where(b => b.EventId == eventId);
+        if (userId != null) query = query.Where(b => b.UserId == userId);
         // Booking.EventId has no navigation (and no foreign key), so ask the Events table.
         if (organizerId != null) query = query.Where(b => db.Set<Event>().Any(e => e.Id == b.EventId && e.OrganizerId == organizerId));
         if (status != null) query = query.Where(b => b.Status == status.Value);

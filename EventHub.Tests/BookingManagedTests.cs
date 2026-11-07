@@ -18,7 +18,7 @@ public class BookingManagedTests {
         new Mock<IUnitOfWork>().Object, new Mock<IPaymentService>().Object);
 
     public BookingManagedTests() {
-        _bookingRepo.Setup(r => r.GetPagedAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<BookingStatus?>(), 1, 10))
+        _bookingRepo.Setup(r => r.GetPagedAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<BookingStatus?>(), 1, 10))
             .ReturnsAsync((new List<Booking>(), 7));
         _eventRepo.Setup(r => r.GetByIdAsync("event_1")).ReturnsAsync(new Event {
             Id = "event_1", Title = "T", Description = "D", Location = "L", OrganizerId = "org_1",
@@ -28,24 +28,31 @@ public class BookingManagedTests {
 
     [Fact]
     public async Task AnAdmin_SeesEveryBooking_NotLimitedToAnOrganizer() {
-        var result = await CreateService().GetManagedPagedAsync("admin_1", UserRole.Admin, null, null, 1, 10);
+        var result = await CreateService().GetManagedPagedAsync("admin_1", UserRole.Admin, null, null, null, 1, 10);
 
         Assert.Equal(7, result.TotalCount);
-        _bookingRepo.Verify(r => r.GetPagedAsync(null, null, null, 1, 10), Times.Once);
+        _bookingRepo.Verify(r => r.GetPagedAsync(null, null, null, null, 1, 10), Times.Once);
+    }
+
+    [Fact]
+    public async Task AnAdmin_CanReadOneBuyersHistory() {
+        await CreateService().GetManagedPagedAsync("admin_1", UserRole.Admin, null, "buyer_1", null, 1, 10);
+
+        _bookingRepo.Verify(r => r.GetPagedAsync(null, null, "buyer_1", null, 1, 10), Times.Once);
     }
 
     [Fact]
     public async Task AnOrganizer_IsLimitedToTheirOwnEvents() {
-        await CreateService().GetManagedPagedAsync("org_1", UserRole.Organizer, null, BookingStatus.Pending, 1, 10);
+        await CreateService().GetManagedPagedAsync("org_1", UserRole.Organizer, null, null, BookingStatus.Pending, 1, 10);
 
-        _bookingRepo.Verify(r => r.GetPagedAsync(null, "org_1", BookingStatus.Pending, 1, 10), Times.Once);
+        _bookingRepo.Verify(r => r.GetPagedAsync(null, "org_1", null, BookingStatus.Pending, 1, 10), Times.Once);
     }
 
     [Fact]
     public async Task AnOrganizer_MayNameOneOfTheirEvents() {
-        await CreateService().GetManagedPagedAsync("org_1", UserRole.Organizer, "event_1", null, 1, 10);
+        await CreateService().GetManagedPagedAsync("org_1", UserRole.Organizer, "event_1", null, null, 1, 10);
 
-        _bookingRepo.Verify(r => r.GetPagedAsync("event_1", "org_1", null, 1, 10), Times.Once);
+        _bookingRepo.Verify(r => r.GetPagedAsync("event_1", "org_1", null, null, 1, 10), Times.Once);
     }
 
     [Theory]
@@ -56,8 +63,8 @@ public class BookingManagedTests {
         _eventRepo.Setup(r => r.GetByIdAsync("missing")).ReturnsAsync((Event?)null);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
-            () => CreateService().GetManagedPagedAsync(userId, role, eventId, null, 1, 10));
+            () => CreateService().GetManagedPagedAsync(userId, role, eventId, null, null, 1, 10));
 
-        _bookingRepo.Verify(r => r.GetPagedAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<BookingStatus?>(), It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+        _bookingRepo.Verify(r => r.GetPagedAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<BookingStatus?>(), It.IsAny<int>(), It.IsAny<int>()), Times.Never);
     }
 }

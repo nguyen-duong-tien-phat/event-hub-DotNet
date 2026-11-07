@@ -338,7 +338,7 @@ public class BookingService (
     /// own events for an organizer.
     /// </summary>
     /// <exception cref="UnauthorizedAccessException">Not an admin or organizer, or the event is not the organizer's.</exception>
-    public async Task<PagedResult<Booking>> GetManagedPagedAsync(string userId, UserRole userRole, string? eventId, BookingStatus? status, int page, int pageSize) {
+    public async Task<PagedResult<Booking>> GetManagedPagedAsync(string userId, UserRole userRole, string? eventId, string? buyerId, BookingStatus? status, int page, int pageSize) {
         if (userRole is not (UserRole.Admin or UserRole.Organizer)) throw new UnauthorizedAccessException();
         if (userRole == UserRole.Organizer && eventId != null) {
             var ev = await eventRepository.GetByIdAsync(eventId);
@@ -346,7 +346,7 @@ public class BookingService (
         }
 
         var (items, totalCount) = await bookingRepository.GetPagedAsync(
-            eventId, userRole == UserRole.Organizer ? userId : null, status, page, pageSize);
+            eventId, userRole == UserRole.Organizer ? userId : null, buyerId, status, page, pageSize);
         return new PagedResult<Booking> { Items = items, Page = page, PageSize = pageSize, TotalCount = totalCount };
     }
 

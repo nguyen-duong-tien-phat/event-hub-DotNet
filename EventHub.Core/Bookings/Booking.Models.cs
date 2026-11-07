@@ -23,6 +23,9 @@ public class BookingWithPaymentResult {
 // DTOs
 public class ManagedBookingsQuery : PaginationQuery {
     public string? EventId { get; set; }
+
+    /// <summary>Only the bookings of this buyer: an admin reads a user's history with it.</summary>
+    public string? UserId { get; set; }
     public BookingStatus? Status { get; set; }
 }
 
