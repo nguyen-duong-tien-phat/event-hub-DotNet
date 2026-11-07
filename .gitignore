@@ -8,3 +8,6 @@ riderModule.iml
 .DS_Store
 # graphify knowledge graph output
 graphify-out/
+
+# Claude Code local settings (preview launch config)
+.claude/
