@@ -127,6 +127,44 @@ public class EventServiceTests {
     }
 
     [Fact]
+    public async Task UpdateAsync_ReplacingAnUploadedPoster_DeletesTheOldFileAfterTheCommit() {
+        var existing = ExistingEvent();
+        existing.ImageUrl = UploadedImage; // events/images/a.jpg
+        _eventRepo.Setup(r => r.GetByIdAsync("event_1")).ReturnsAsync(existing);
+        var calls = new List<string>();
+        _eventRepo.Setup(r => r.SaveChangesAsync()).Callback(() => calls.Add("save")).ReturnsAsync(1);
+        _storage.Setup(s => s.DeleteAsync("events/images/a.jpg")).Callback(() => calls.Add("delete")).Returns(Task.CompletedTask);
+
+        await CreateService().UpdateAsync("user_1", UserRole.Organizer, "event_1",
+            new UpdateEventRequest { ImageUrl = "https://files.test/events/images/b.jpg" });
+
+        Assert.Equal(["save", "delete"], calls);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ReplacingAPosterWeDidNotUpload_LeavesTheOldFileAlone() {
+        var existing = ExistingEvent(); // "old": a seed or external URL
+        _eventRepo.Setup(r => r.GetByIdAsync("event_1")).ReturnsAsync(existing);
+
+        await CreateService().UpdateAsync("user_1", UserRole.Organizer, "event_1",
+            new UpdateEventRequest { ImageUrl = UploadedImage });
+
+        _storage.Verify(s => s.DeleteAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_SendingTheSameImageAgain_DeletesNothing() {
+        var existing = ExistingEvent();
+        existing.ImageUrl = UploadedImage;
+        _eventRepo.Setup(r => r.GetByIdAsync("event_1")).ReturnsAsync(existing);
+
+        await CreateService().UpdateAsync("user_1", UserRole.Organizer, "event_1",
+            new UpdateEventRequest { ImageUrl = UploadedImage });
+
+        _storage.Verify(s => s.DeleteAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
     public async Task UpdateAsync_WithoutImage_LeavesTheImageAlone() {
         var existing = ExistingEvent();
         _eventRepo.Setup(r => r.GetByIdAsync("event_1")).ReturnsAsync(existing);

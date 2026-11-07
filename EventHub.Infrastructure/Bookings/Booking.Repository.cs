@@ -1,4 +1,5 @@
 using EventHub.Core.Bookings;
+using EventHub.Core.Common;
 using EventHub.Core.Events;
 using EventHub.Infrastructure.Common;
 using EventHub.Infrastructure.Data;
@@ -75,7 +76,7 @@ public class BookingRepository(AppDbContext db) : Repository<Booking>(db), IBook
         return (items, totalCount);
     }
 
-    public async Task<(List<Booking> Items, int TotalCount)> GetPagedAsync(string? eventId, string? organizerId, string? userId, BookingStatus? status, int page, int pageSize) {
+    public async Task<(List<Booking> Items, int TotalCount)> GetPagedAsync(string? eventId, string? organizerId, string? userId, BookingStatus? status, int page, int pageSize, CursorKey? after = null) {
         var query = DbSet.AsQueryable();
         if (eventId != null) query = query.Where(b => b.EventId == eventId);
         if (userId != null) query = query.Where(b => b.UserId == userId);
@@ -84,12 +85,11 @@ public class BookingRepository(AppDbContext db) : Repository<Booking>(db), IBook
         if (status != null) query = query.Where(b => b.Status == status.Value);
 
         var totalCount = await query.CountAsync();
-        var items = await query
-            .Include(b => b.User)
-            .OrderByDescending(b => b.CreatedAt).ThenBy(b => b.Id)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
+        // Newest first, the id breaks ties. With a cursor: the rows after it, no OFFSET. One row extra tells the caller if there is a next page.
+        var ordered = query.Include(b => b.User).OrderByDescending(b => b.CreatedAt).ThenBy(b => b.Id);
+        var items = after is { } k
+            ? await ordered.Where(b => b.CreatedAt < k.At || (b.CreatedAt == k.At && string.Compare(b.Id, k.Id) > 0)).Take(pageSize + 1).ToListAsync()
+            : await ordered.Skip((page - 1) * pageSize).Take(pageSize + 1).ToListAsync();
 
         return (items, totalCount);
     }

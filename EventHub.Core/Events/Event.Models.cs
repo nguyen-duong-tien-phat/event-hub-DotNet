@@ -28,6 +28,9 @@ public class EventQuery : PaginationQuery {
     public string? OrganizerId { get; set; }
 
     public EventSort Sort { get; set; } = EventSort.StartsAt;
+
+    /// <summary>From a previous page's <c>nextCursor</c>: keyset paging, <c>page</c> is then ignored.</summary>
+    public string? Cursor { get; set; }
 }
 
 public class CreateEventRequest {

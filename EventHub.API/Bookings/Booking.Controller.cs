@@ -94,13 +94,16 @@ public class BookingsController(BookingService bookingService, IRateLimiter rate
         var requestRole = Enum.Parse<UserRole>(User.FindFirst(ClaimTypes.Role)!.Value);
 
         try {
-            var result = await bookingService.GetManagedPagedAsync(requestId, requestRole, query.EventId, query.UserId, query.Status, query.Page, query.PageSize);
+            var result = await bookingService.GetManagedPagedAsync(requestId, requestRole, query.EventId, query.UserId, query.Status, query.Page, query.PageSize, query.Cursor);
             return Ok(new PagedResult<BookingResponseDto> {
                 Items = await bookingService.ToResponsesAsync(result.Items),
                 Page = result.Page,
                 PageSize = result.PageSize,
-                TotalCount = result.TotalCount
+                TotalCount = result.TotalCount,
+                NextCursor = result.NextCursor
             });
+        } catch (InvalidCursorException e) {
+            return BadRequest(new { message = e.Message });
         } catch (UnauthorizedAccessException) {
             return Forbid();
         }

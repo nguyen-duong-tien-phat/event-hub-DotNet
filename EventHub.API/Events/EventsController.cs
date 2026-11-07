@@ -34,17 +34,23 @@ public class EventsController(EventService eventService, UploadService uploadSer
             return BadRequest(new { message = "'minPrice' must not be higher than 'maxPrice'" });
         }
 
-        var result = await eventService.GetPagedAsync(
-            query.Page, 
-            query.PageSize, 
-            query.Search, 
-            query.Category,
-            query.MinPrice,
-            query.MaxPrice,
-            query.From,
-            query.To,
-            query.OrganizerId,
-            query.Sort);
+        PagedResult<Event> result;
+        try {
+            result = await eventService.GetPagedAsync(
+                query.Page,
+                query.PageSize,
+                query.Search,
+                query.Category,
+                query.MinPrice,
+                query.MaxPrice,
+                query.From,
+                query.To,
+                query.OrganizerId,
+                query.Sort,
+                query.Cursor);
+        } catch (InvalidCursorException e) {
+            return BadRequest(new { message = e.Message });
+        }
         return Ok(result.Map(EventListItemDto.FromEntity));
     }
     
@@ -115,6 +121,23 @@ public class EventsController(EventService eventService, UploadService uploadSer
         }
     }
 
+    /// <summary>
+    /// Sales totals and per-event numbers of one organizer's events in a single request. An admin may name any
+    /// organizer (or none: every event); an organizer only themselves.
+    /// </summary>
+    [Authorize(Roles = "Admin, Organizer")]
+    [HttpGet("sales")]
+    public async Task<ActionResult<SalesDto>> GetSales([FromQuery] SalesQuery query) {
+        var requestId = User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
+        var requestRole = Enum.Parse<UserRole>(User.FindFirst(ClaimTypes.Role)!.Value);
+
+        try {
+            return Ok(await eventService.GetSalesAsync(requestId, requestRole, query.OrganizerId, query.Page, query.PageSize));
+        } catch (UnauthorizedAccessException) {
+            return Forbid();
+        }
+    }
+
     /// <summary>Bookings by status, revenue, tickets sold and people checked in. The event's organizer or an admin.</summary>
     [Authorize(Roles = "Admin, Organizer")]
     [HttpGet("{id}/stats")]
@@ -138,7 +161,7 @@ public class EventsController(EventService eventService, UploadService uploadSer
         var requestRole = Enum.Parse<UserRole>(User.FindFirst(ClaimTypes.Role)!.Value);
 
         try {
-            var result = await admissionService.GetPagedByEventAsync(requestId, requestRole, id, query.CheckedIn, query.Search, query.Page, query.PageSize);
+            var result = await admissionService.GetPagedByEventAsync(requestId, requestRole, id, query.CheckedIn, query.Search, query.Page, query.PageSize, query.Cursor);
             if (result == null) return NotFound();
             return Ok(result.Map(r => new EventAdmissionDto {
                 Id = r.Admission.Id,
@@ -151,6 +174,8 @@ public class EventsController(EventService eventService, UploadService uploadSer
                 BookingId = r.Admission.BookingId,
                 Buyer = new BookingBuyerDto { Id = r.Buyer.Id, FullName = r.Buyer.FullName, Email = r.Buyer.Email },
             }));
+        } catch (InvalidCursorException e) {
+            return BadRequest(new { message = e.Message });
         } catch (UnauthorizedAccessException) {
             return Forbid();
         }

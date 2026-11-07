@@ -1,7 +1,10 @@
+using EventHub.Core.Common;
 using EventHub.Core.Events;
 using EventHub.Infrastructure.Common;
 using EventHub.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using NpgsqlTypes;
 
 namespace EventHub.Infrastructure.Events;
 
@@ -25,7 +28,8 @@ public class EventRepository(AppDbContext db): Repository<Event>(db), IEventRepo
         DateTime? from,
         DateTime? to,
         string? organizerId,
-        EventSort sort
+        EventSort sort,
+        CursorKey? after = null
         ) {
         var query = DbSet.AsNoTracking();
 
@@ -70,15 +74,83 @@ public class EventRepository(AppDbContext db): Repository<Event>(db), IEventRepo
             EventSort.Newest => query.OrderByDescending(e => e.CreatedAt),
             _ => query.OrderBy(e => e.StartsAt),
         };
-        var items = await ordered
-            .ThenBy(e => e.Id)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
+        var ordered2 = ordered.ThenBy(e => e.Id);
+        // Keyset: the rows past the cursor in this sort's own direction (ids always ascend). Same order as the OFFSET page.
+        var paged = after is not { } k ? ordered2.Skip((page - 1) * pageSize) : sort switch {
+            EventSort.StartsAtDesc => ordered2.Where(e => e.StartsAt < k.At || (e.StartsAt == k.At && string.Compare(e.Id, k.Id) > 0)),
+            EventSort.Newest => ordered2.Where(e => e.CreatedAt < k.At || (e.CreatedAt == k.At && string.Compare(e.Id, k.Id) > 0)),
+            _ => ordered2.Where(e => e.StartsAt > k.At || (e.StartsAt == k.At && string.Compare(e.Id, k.Id) > 0)),
+        };
+        var items = await paged
+            .Take(pageSize + 1)
             .Include(e => e.Organizer)
             .Include(e => e.Tickets)
             .ToListAsync();
 
         return (items, totalCount);
+    }
+
+    // Per event, with every sum in its own CTE: joining the jsonb ticket lines to the bookings would repeat each booking's
+    // revenue once per line. "Sold" and "revenue" mean what EventStatsDto means: confirmed bookings only, fee not included.
+    private const string SalesPerEvent = """
+        WITH ev AS (
+            SELECT e."Id", e."Title", e."StartsAt", e."Location" FROM "Events" e
+            WHERE @org::text IS NULL OR e."OrganizerId" = @org
+        ),
+        seats AS (
+            SELECT t."EventId", SUM(t."TotalQuantity")::int AS total, SUM(t."RemainingQuantity")::int AS remaining
+            FROM "Tickets" t WHERE t."EventId" IN (SELECT "Id" FROM ev) GROUP BY t."EventId"
+        ),
+        paid AS (
+            SELECT b."EventId", SUM(b."TotalPrice" - b."ServiceFee") AS revenue
+            FROM "Bookings" b WHERE b."Status" = 'Confirmed' AND b."EventId" IN (SELECT "Id" FROM ev) GROUP BY b."EventId"
+        ),
+        sold AS (
+            SELECT b."EventId", SUM((j ->> 'Quantity')::int)::int AS qty
+            FROM "Bookings" b CROSS JOIN LATERAL jsonb_array_elements(b."Tickets") AS j
+            WHERE b."Status" = 'Confirmed' AND b."EventId" IN (SELECT "Id" FROM ev) GROUP BY b."EventId"
+        ),
+        checked AS (
+            SELECT b."EventId", COUNT(*)::int AS n
+            FROM "Admissions" a JOIN "Bookings" b ON b."Id" = a."BookingId"
+            WHERE a."CheckedInAt" IS NOT NULL AND b."EventId" IN (SELECT "Id" FROM ev) GROUP BY b."EventId"
+        ),
+        per AS (
+            SELECT ev."Id", ev."Title", ev."StartsAt", ev."Location",
+                COALESCE(seats.total, 0) AS "TotalQuantity", COALESCE(seats.remaining, 0) AS "RemainingQuantity",
+                COALESCE(sold.qty, 0) AS "TicketsSold", COALESCE(paid.revenue, 0) AS "TicketRevenue",
+                COALESCE(checked.n, 0) AS "CheckedIn"
+            FROM ev
+            LEFT JOIN seats ON seats."EventId" = ev."Id" LEFT JOIN paid ON paid."EventId" = ev."Id"
+            LEFT JOIN sold ON sold."EventId" = ev."Id" LEFT JOIN checked ON checked."EventId" = ev."Id"
+        )
+        """;
+
+    public async Task<(SalesSummaryDto Summary, List<EventSalesDto> Events)> GetSalesAsync(string? organizerId, int page, int pageSize, DateTime now) {
+        // A fresh set per command: a parameter object cannot be shared between two.
+        NpgsqlParameter[] Params(params NpgsqlParameter[] extra) => [
+            new("org", NpgsqlDbType.Text) { Value = (object?)organizerId ?? DBNull.Value },
+            new("now", NpgsqlDbType.TimestampTz) { Value = now },
+            ..extra];
+
+        var summary = (await db.Database.SqlQueryRaw<SalesSummaryDto>(SalesPerEvent + """
+            SELECT COUNT(*)::int AS "Events",
+                (COUNT(*) FILTER (WHERE "StartsAt" > @now))::int AS "Upcoming",
+                (COUNT(*) FILTER (WHERE "StartsAt" <= @now))::int AS "Past",
+                COALESCE(SUM("TicketsSold"), 0)::int AS "TicketsSold",
+                COALESCE(SUM("TicketRevenue"), 0) AS "TicketRevenue",
+                COALESCE(SUM("CheckedIn"), 0)::int AS "CheckedIn",
+                COALESCE(SUM("TotalQuantity") FILTER (WHERE "StartsAt" <= @now), 0)::int AS "TicketsOfPastEvents",
+                COALESCE(SUM("TicketsSold") FILTER (WHERE "StartsAt" <= @now), 0)::int AS "TicketsSoldOfPastEvents"
+            FROM per
+            """, Params()).ToListAsync()).Single();
+
+        var events = await db.Database.SqlQueryRaw<EventSalesDto>(SalesPerEvent + """
+            SELECT "Id", "Title", "StartsAt", "Location", "TotalQuantity", "RemainingQuantity", "TicketsSold", "TicketRevenue", "CheckedIn"
+            FROM per ORDER BY "StartsAt" DESC, "Id" LIMIT @take OFFSET @skip
+            """, Params(new NpgsqlParameter("take", pageSize), new NpgsqlParameter("skip", (page - 1) * pageSize))).ToListAsync();
+
+        return (summary, events);
     }
 
     public async Task<List<Event>> GetFeaturedEventsAsync(int limit) {

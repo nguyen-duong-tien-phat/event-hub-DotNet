@@ -28,7 +28,7 @@ public interface IBookingRepository : IRepository<Booking> {
     /// One page of bookings, newest first, with their buyers: only those of <paramref name="eventId"/>, only those of events
     /// organized by <paramref name="organizerId"/>, and only those with <paramref name="status"/> (each filter skipped when null).
     /// </summary>
-    Task<(List<Booking> Items, int TotalCount)> GetPagedAsync(string? eventId, string? organizerId, string? userId, BookingStatus? status, int page, int pageSize);
+    Task<(List<Booking> Items, int TotalCount)> GetPagedAsync(string? eventId, string? organizerId, string? userId, BookingStatus? status, int page, int pageSize, CursorKey? after = null);
     /// <summary>Forgets entities from a failed save so the context can be used for a fresh query.</summary>
     void DetachPending();
     Task<Booking?> GetByIdempotencyKeyAsync(string userId, string key);

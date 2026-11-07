@@ -29,23 +29,21 @@ public class EventService(
         DateTime? from,
         DateTime? to,
         string? organizerId = null,
-        EventSort sort = EventSort.StartsAt)
+        EventSort sort = EventSort.StartsAt,
+        string? cursor = null)
     {
+        var after = Cursor.Decode(cursor);
         var searchNormalize = search != null ? search.Trim().ToLower() :  string.Empty;
         var categoryNormalize = category != null ? category.Trim().ToLower() : string.Empty;
-        var cacheKey = $"{CacheKeyPrefix}page={page}:pageSize={pageSize}:search={searchNormalize}:category={categoryNormalize}:minPrice={minPrice}:maxPrice={maxPrice}:from={from}:to={to}:organizer={organizerId}:sort={sort}";
+        var cacheKey = $"{CacheKeyPrefix}page={page}:pageSize={pageSize}:search={searchNormalize}:category={categoryNormalize}:minPrice={minPrice}:maxPrice={maxPrice}:from={from}:to={to}:organizer={organizerId}:sort={sort}:cursor={cursor}";
         var cached = await cache.GetAsync(cacheKey);
         if (cached != null) {
             return JsonSerializer.Deserialize<PagedResult<Event>>(cached)!;
         }
 
-        var (items, totalCount) = await eventRepository.GetEventsQuery(page, pageSize, search, category, minPrice, maxPrice, from, to, organizerId, sort);
-        var result = new PagedResult<Event> {
-            Items = items,
-            Page = page,
-            PageSize = pageSize,
-            TotalCount = totalCount
-        };
+        var (fetched, totalCount) = await eventRepository.GetEventsQuery(page, pageSize, search, category, minPrice, maxPrice, from, to, organizerId, sort, after);
+        var result = PagedResult<Event>.From(fetched, page, pageSize, totalCount,
+            e => Cursor.Encode(sort == EventSort.Newest ? e.CreatedAt : e.StartsAt, e.Id));
         await cache.SetAsync(cacheKey, JsonSerializer.Serialize(result), TimeSpan.FromMinutes(5));
         return result;
     }
@@ -104,6 +102,24 @@ public class EventService(
                     Held = Math.Max(0, t.TotalQuantity - t.RemainingQuantity - sold),
                 };
             }).ToList(),
+        };
+    }
+
+    /// <summary>
+    /// Sales totals and a page of per-event numbers. An admin may ask for any organizer or for everyone; an organizer
+    /// only for themselves (leaving it out means themselves).
+    /// </summary>
+    /// <exception cref="UnauthorizedAccessException">An organizer asked for someone else, or the caller is neither.</exception>
+    public async Task<SalesDto> GetSalesAsync(string requestId, UserRole requestRole, string? organizerId, int page, int pageSize) {
+        if (requestRole == UserRole.Organizer) organizerId = string.IsNullOrEmpty(organizerId) ? requestId : organizerId;
+        if (requestRole is not (UserRole.Admin or UserRole.Organizer) || (requestRole == UserRole.Organizer && organizerId != requestId)) {
+            throw new UnauthorizedAccessException();
+        }
+
+        var (summary, events) = await eventRepository.GetSalesAsync(string.IsNullOrEmpty(organizerId) ? null : organizerId, page, pageSize, DateTime.UtcNow);
+        return new SalesDto {
+            Summary = summary,
+            Events = new PagedResult<EventSalesDto> { Items = events, Page = page, PageSize = pageSize, TotalCount = summary.Events },
         };
     }
 
@@ -181,6 +197,7 @@ public class EventService(
         if (request.AgeRestriction is not null) existing.AgeRestriction = request.AgeRestriction;
         if (request.RefundPolicy is not null) existing.RefundPolicy = request.RefundPolicy;
         if (request.Highlights is not null) existing.Highlights = request.Highlights;
+        var oldImageUrl = existing.ImageUrl;
         if (request.ImageUrl is not null) {
             ValidateImageUrl(request.ImageUrl);
             existing.ImageUrl = request.ImageUrl;
@@ -191,6 +208,9 @@ public class EventService(
         await eventRepository.SaveChangesAsync();
         
         await cache.RemoveByPrefixAsync(CacheKeyPrefix);
+
+        // After the commit, like delete: a failed file delete only orphans the old poster. Seed and external URLs are never touched.
+        if (existing.ImageUrl != oldImageUrl) await uploads.DeleteUploadedAsync(UploadKind.EventImage, oldImageUrl);
         
         return existing;
     }

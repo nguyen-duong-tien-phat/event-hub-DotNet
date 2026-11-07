@@ -34,3 +34,42 @@ public class EventStatsDto {
     public int CheckedIn { get; set; }
     public List<TicketStatsDto> Tickets { get; set; } = [];
 }
+
+/// <summary>Totals over the events a sales request covers. Same meaning as <see cref="EventStatsDto"/>, summed.</summary>
+public class SalesSummaryDto {
+    public int Events { get; set; }
+    public int Upcoming { get; set; }
+    public int Past { get; set; }
+    public int TicketsSold { get; set; }
+    public decimal TicketRevenue { get; set; }
+    public int CheckedIn { get; set; }
+
+    /// <summary>Seats of the events that have already started.</summary>
+    public int TicketsOfPastEvents { get; set; }
+
+    /// <summary>Tickets sold for the events that have already started: whom a check-in count can be compared with.</summary>
+    public int TicketsSoldOfPastEvents { get; set; }
+}
+
+/// <summary>One event's line in the sales list. Same meaning as <see cref="EventStatsDto"/>.</summary>
+public class EventSalesDto {
+    public string Id { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public DateTime StartsAt { get; set; }
+    public string Location { get; set; } = string.Empty;
+    public int TotalQuantity { get; set; }
+    public int RemainingQuantity { get; set; }
+    public int TicketsSold { get; set; }
+    public decimal TicketRevenue { get; set; }
+    public int CheckedIn { get; set; }
+}
+
+public class SalesDto {
+    public required SalesSummaryDto Summary { get; set; }
+    public required Common.PagedResult<EventSalesDto> Events { get; set; }
+}
+
+public class SalesQuery : Common.PaginationQuery {
+    /// <summary>An admin: whose events (left out: everyone's). An organizer: only themselves.</summary>
+    public string? OrganizerId { get; set; }
+}

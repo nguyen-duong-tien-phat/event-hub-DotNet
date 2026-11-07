@@ -25,6 +25,9 @@ public class AdmissionsQuery : PaginationQuery {
 
     /// <summary>Part of the short code, or of the buyer's name or email.</summary>
     public string? Search { get; set; }
+
+    /// <summary>From a previous page's <c>nextCursor</c>: keyset paging, <c>page</c> is then ignored.</summary>
+    public string? Cursor { get; set; }
 }
 
 /// <summary>A row of an event's attendee list.</summary>

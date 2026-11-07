@@ -27,6 +27,9 @@ public class ManagedBookingsQuery : PaginationQuery {
     /// <summary>Only the bookings of this buyer: an admin reads a user's history with it.</summary>
     public string? UserId { get; set; }
     public BookingStatus? Status { get; set; }
+
+    /// <summary>From a previous page's <c>nextCursor</c>: keyset paging, <c>page</c> is then ignored.</summary>
+    public string? Cursor { get; set; }
 }
 
 public class BookingTicketDto {

@@ -38,7 +38,7 @@
 | Role | Can |
 |---|---|
 | **Attendee** | Browse events, book and pay, see their own bookings, tickets and QR codes, save events |
-| **Organizer** | Everything on their own events: create, edit and delete them (not once booked), upload posters, manage ticket types (a ticket that has sold can't be deleted), see bookings with the buyer's name and email, cancel (and refund) them, see sales numbers per event (`GET /events/{id}/stats`), see who holds a ticket and who has already got in (`GET /events/{id}/admissions`), check tickets in by QR or short code, list bookings across their events |
+| **Organizer** | Everything on their own events: create, edit and delete them (not once booked), upload posters, manage ticket types (a ticket that has sold can't be deleted), see bookings with the buyer's name and email, cancel (and refund) them, see sales numbers per event (`GET /events/{id}/stats`) and totals over all their events (`GET /events/sales`), see who holds a ticket and who has already got in (`GET /events/{id}/admissions`), check tickets in by QR or short code, list bookings across their events |
 | **Admin** | The same on any event, plus create users (with a role) and events for any organizer, search users (by name or email, role, active or blocked), set their roles and block or unblock accounts (an admin can do neither to themselves), read a user's booking history, list the bookings of every event, and cancel any booking |
 
 ## Architecture

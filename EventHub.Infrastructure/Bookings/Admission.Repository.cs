@@ -1,4 +1,5 @@
 using EventHub.Core.Bookings;
+using EventHub.Core.Common;
 using EventHub.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -51,7 +52,7 @@ public class AdmissionRepository(AppDbContext db) : IAdmissionRepository {
     }
 
     public async Task<(List<EventAdmissionRow> Items, int TotalCount)> GetPagedByEventAsync(
-        string eventId, bool? checkedIn, string? search, int page, int pageSize) {
+        string eventId, bool? checkedIn, string? search, int page, int pageSize, CursorKey? after = null) {
         var query = from a in db.Admissions.AsNoTracking()
                     join b in db.Bookings on a.BookingId equals b.Id
                     where b.EventId == eventId && b.Status == BookingStatus.Confirmed
@@ -72,7 +73,13 @@ public class AdmissionRepository(AppDbContext db) : IAdmissionRepository {
         var ordered = checkedIn == true
             ? query.OrderByDescending(x => x.a.CheckedInAt).ThenBy(x => x.a.Id)
             : query.OrderByDescending(x => x.a.CreatedAt).ThenBy(x => x.a.Id);
-        var rows = await ordered.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+        var byTime = checkedIn == true; // the same key the order above uses
+        var rows = after is { } k
+            ? await (byTime
+                ? ordered.Where(x => x.a.CheckedInAt < k.At || (x.a.CheckedInAt == k.At && string.Compare(x.a.Id, k.Id) > 0))
+                : ordered.Where(x => x.a.CreatedAt < k.At || (x.a.CreatedAt == k.At && string.Compare(x.a.Id, k.Id) > 0)))
+                .Take(pageSize + 1).ToListAsync()
+            : await ordered.Skip((page - 1) * pageSize).Take(pageSize + 1).ToListAsync();
 
         return (rows.Select(x => new EventAdmissionRow(x.a, x.StaffName, x.u)).ToList(), totalCount);
     }
