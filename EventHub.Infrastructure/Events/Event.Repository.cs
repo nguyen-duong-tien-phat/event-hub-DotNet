@@ -34,11 +34,14 @@ public class EventRepository(AppDbContext db): Repository<Event>(db), IEventRepo
         }
 
         if (!string.IsNullOrWhiteSpace(search)) {
-            query = query.Where(e => 
-                e.Title.Contains(search) || 
-                e.Location.Contains(search) || 
-                e.Description.Contains(search)
-                );
+            // Case-insensitive, like the cache key (it lowercases the text): a plain Contains is case-sensitive in
+            // Postgres, so "neon" missed "Neon Nights" and a cached "Night" answer was served for "night".
+            // %, _ and \ are escaped so they match themselves.
+            var pattern = $"%{search.Trim().Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_")}%";
+            query = query.Where(e =>
+                EF.Functions.ILike(e.Title, pattern) ||
+                EF.Functions.ILike(e.Location, pattern) ||
+                EF.Functions.ILike(e.Description, pattern));
         }
 
         if (!string.IsNullOrWhiteSpace(category)) {
