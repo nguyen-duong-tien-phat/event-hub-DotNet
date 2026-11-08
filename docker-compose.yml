@@ -45,8 +45,6 @@ services:
       # DB_CONNECTION overrides; otherwise it is built from the POSTGRES_* values above.
       ConnectionStrings__DefaultConnection: ${DB_CONNECTION:-Host=postgres;Port=5432;Database=${POSTGRES_DB:-eventhub};Username=${POSTGRES_USER:-eventhub};Password=${POSTGRES_PASSWORD:-eventhub_dev}}
       ConnectionStrings__Redis: "redis:6379"
-      Jwt__Key: ${Jwt__Key}
-      Tickets__Secret: ${Tickets__Secret}
       Cors__AllowedOrigins: ${Cors__AllowedOrigins:-http://localhost:5173}
       # Swagger UI at /swagger. This stack is for development; set false anywhere that is not.
       Swagger__Enabled: ${Swagger__Enabled:-true}
@@ -71,8 +69,10 @@ services:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
       AWS_REGION: ${AWS_REGION:-us-east-1}
-      Stripe__SecretKey: ${Stripe__SecretKey}
-      Stripe__WebhookSecret: ${Stripe__WebhookSecret}
+      # Jwt, Tickets and Stripe keys come from this secret in Secrets Manager (Floci), created by infra/secrets.tf.
+      Aws__SecretId: ${Aws__SecretId:-eventhub/app}
+      # Address of Floci inside the compose network (the .env value, localhost, only works outside Docker).
+      Aws__ServiceUrl: "http://floci:4566"
     depends_on:
       - postgres
       - redis

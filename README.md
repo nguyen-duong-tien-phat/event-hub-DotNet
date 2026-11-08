@@ -111,35 +111,41 @@ Postgres serializes writes to the row, so no read-then-write race exists. Versio
 
 ## Run locally
 
-Requires Docker. Copy [`.env.example`](.env.example) to `.env` in the repo root and fill in `Jwt__Key`, `Tickets__Secret` and the two Stripe keys. The compose file already runs a Floci container (a local AWS emulator) for event images and points the API at it; do the one-time bucket setup in [Event images and CORS](#event-images-and-cors) after the first start. Then:
+Requires Docker and [Terraform](https://developer.hashicorp.com/terraform/install). The compose file runs a Floci container (a local AWS emulator) that holds the event images and the app's secrets (Secrets Manager); [`infra/`](infra) creates them in it. Copy [`.env.example`](.env.example) to `.env` in the repo root (the defaults are enough), then create `infra/terraform.tfvars` (gitignored) with the four secrets, then:
+
+```hcl
+# infra/terraform.tfvars
+jwt_key               = "..."   # openssl rand -base64 48
+tickets_secret        = "..."   # openssl rand -base64 48, a different value
+stripe_secret_key     = "sk_test_..."
+stripe_webhook_secret = "whsec_..."
+```
 
 ```bash
 git clone git@github.com:nguyen-duong-tien-phat/event-hub-DotNet.git
 cd event-hub-DotNet
+docker compose up -d floci       # the emulator first: Terraform and the API both talk to it
+terraform -chdir=infra init
+terraform -chdir=infra apply     # bucket + CORS rule + IAM role + the eventhub/app secret
 docker compose up --build        # API :8080, Swagger :8080/swagger, Mailpit inbox :8025
 dotnet test                      # unit tests, no infrastructure needed
 k6 run load-test.js              # concurrency test (set a JWT and ticketId at the top first)
 ```
 
+The API reads `Jwt:Key`, `Tickets:Secret` and the Stripe keys from that secret at startup, so it will not start until `apply` has run. Running it from the IDE instead: put `Aws__SecretId=eventhub/app` and `Aws__ServiceUrl=http://localhost:4566` in `.env`, or set the four keys there yourself and leave both out.
+
 After pulling new changes, apply the migrations (the container does not do it for you): `cd EventHub.Infrastructure && dotnet ef database update --startup-project ../EventHub.API`.
 
-For the Stripe webhook locally, run `stripe listen --forward-to localhost:8080/webhooks/stripe` and use the printed `whsec_...` as `Stripe__WebhookSecret`.
+For the Stripe webhook locally, run `stripe listen --forward-to localhost:8080/webhooks/stripe`, put the printed `whsec_...` in `stripe_webhook_secret`, run `terraform -chdir=infra apply` and restart the API (secrets are read once at startup).
 
 ### Event images and CORS
 
 Poster images go from the browser straight to S3 (a presigned `PUT`), so two CORS rules are needed:
 
 - **The API** lets the web dashboard call it. Set `Cors__AllowedOrigins` (comma separated; default `http://localhost:5173`).
-- **The bucket** must allow the dashboard's origin to `PUT` the file. Locally the bucket lives in Floci:
+- **The bucket** must allow the dashboard's origin to `PUT` the file. Locally the bucket lives in Floci and `terraform -chdir=infra apply` creates it with the rule (see [`infra/s3.tf`](infra/s3.tf); change `allowed_origins` there for another dashboard address). To look at it: `eval "$(floci aws env -o text)"` points the `aws` CLI at Floci, then `aws s3api get-bucket-cors --bucket eventhub-images`.
 
-```bash
-eval "$(floci aws env -o text)"          # point the aws CLI at Floci, not real AWS
-aws s3 mb s3://eventhub-images
-aws s3api put-bucket-cors --bucket eventhub-images --cors-configuration \
-  '{"CORSRules":[{"AllowedOrigins":["http://localhost:5173"],"AllowedMethods":["PUT","GET"],"AllowedHeaders":["Content-Type"]}]}'
-```
-
-The Floci in `docker-compose.yml` keeps its data in the `floci-data` volume, so the bucket, its CORS rule and the images survive restarts (`docker compose down -v` deletes them, along with the database). Don't also run `floci aws start`: both want port 4566.
+The Floci in `docker-compose.yml` keeps its data in the `floci-data` volume, so the bucket, its CORS rule, the secret and the images survive restarts. `docker compose down -v` deletes them, along with the database: run `terraform -chdir=infra apply` again afterwards (Terraform notices they are gone and recreates them). Don't also run `floci aws start`: both want port 4566.
 
 In production list only the real dashboard origin in both places, never `*`.
 

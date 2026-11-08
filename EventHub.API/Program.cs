@@ -40,10 +40,28 @@ using StackExchange.Redis;
 using Stripe;
 using EventService = EventHub.Core.Events.EventService;
 using TokenService = EventHub.Core.Auth.TokenService;
+using Amazon.SecretsManager;
+using Amazon.SecretsManager.Model;
+using System.Text.Json;
 
-Env.Load("../.env"); 
+Env.Load("../.env");
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Secrets: when Aws:SecretId is set, read them from Secrets Manager. They win over .env.
+// shortcut: read once at startup, so a rotated secret needs a restart; use a custom IConfigurationProvider to reload.
+var secretId = builder.Configuration["Aws:SecretId"];
+if (!string.IsNullOrEmpty(secretId)) {
+    var serviceUrl = builder.Configuration["Aws:ServiceUrl"];
+    using var secrets = string.IsNullOrEmpty(serviceUrl)
+        ? new AmazonSecretsManagerClient()
+        : new AmazonSecretsManagerClient(new AmazonSecretsManagerConfig {
+            ServiceURL = serviceUrl,
+            AuthenticationRegion = Environment.GetEnvironmentVariable("AWS_REGION") ?? "us-east-1" });
+    var secret = await secrets.GetSecretValueAsync(new GetSecretValueRequest { SecretId = secretId });
+    var json = secret.SecretString ?? throw new InvalidOperationException($"Secret '{secretId}' has no text value.");
+    builder.Configuration.AddInMemoryCollection(JsonSerializer.Deserialize<Dictionary<string, string?>>(json)!);
+}
 
 // Add services to the container.
 builder.Services.AddControllers();
