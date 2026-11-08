@@ -11,3 +11,9 @@ graphify-out/
 
 # Claude Code local settings (preview launch config)
 .claude/
+
+# Terraform: plugins, state (records what exists, may hold secrets) and variable files
+infra/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
