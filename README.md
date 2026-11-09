@@ -13,6 +13,14 @@
 
 > **Note:** this is a local project. It runs only on a developer machine (Docker Compose, with Floci as a local AWS emulator), is not deployed anywhere, and is not meant for production.
 
+## The three repositories
+
+| Repo | What it is | Who uses it |
+|---|---|---|
+| [event-hub-DotNet](https://github.com/nguyen-duong-tien-phat/event-hub-DotNet) | The API (this repo): ASP.NET Core, PostgreSQL, Redis, Stripe, SQS and S3 on Floci | Both clients |
+| [event-hub-web](https://github.com/nguyen-duong-tien-phat/event-hub-web) | The dashboard: React and TypeScript | Organizers and admins (attendee accounts are refused at sign-in) |
+| [event-hub-flutter](https://github.com/nguyen-duong-tien-phat/event-hub-flutter) | The mobile app: Flutter | Attendees buy tickets; organizers and admins follow sales and check guests in |
+
 ## Highlights
 
 - **Oversell-proof inventory.** One atomic SQL statement decides every reservation, so concurrent requests can't double-sell a ticket, with no locks in application code.
@@ -43,8 +51,8 @@
 
 | Role | Can |
 |---|---|
-| **Attendee** | Browse events, book and pay, see their own bookings, tickets and QR codes, save events |
-| **Organizer** | Everything on their own events: create, edit and delete them (not once booked), upload posters, manage ticket types (a ticket that has sold can't be deleted), see bookings with the buyer's name and email, cancel (and refund) them, see sales numbers per event (`GET /events/{id}/stats`) and totals over all their events (`GET /events/sales`), see who holds a ticket and who has already got in (`GET /events/{id}/admissions`), check tickets in by QR or short code, list bookings across their events |
+| **Attendee** | Browse events, book and pay, see their own bookings, tickets and QR codes, save events (in the mobile app; the dashboard refuses attendee accounts) |
+| **Organizer** | Everything on their own events: create, edit and delete them (not once booked), upload posters, manage ticket types (a ticket that has sold can't be deleted), see bookings with the buyer's name and email, cancel (and refund) them, see sales numbers per event (`GET /events/{id}/stats`) and totals over all their events (`GET /events/sales`), see who holds a ticket and who has already got in (`GET /events/{id}/admissions`), check tickets in by QR or short code, list bookings across their events. On the dashboard, and read-only on the phone (sales, guests, bookings and check-in) |
 | **Admin** | The same on any event, plus create users (with a role) and events for any organizer, search users (by name or email, role, active or blocked), set their roles and block or unblock accounts (an admin can do neither to themselves), read a user's booking history, list the bookings of every event, and cancel any booking |
 
 ## Architecture
@@ -112,7 +120,7 @@ Postgres serializes writes to the row, so no read-then-write race exists. Versio
 
 ## Results
 
-- **240+ automated tests** (xUnit + Moq) covering booking, payments, ticket issuing and check-in, refresh tokens, password reset and cleanup jobs. CI builds and tests on every push.
+- **300 automated tests** (xUnit + Moq) covering booking, payments, ticket issuing and check-in, the email and retry queues, refresh tokens, password reset and cleanup jobs; the dashboard adds 107 and the mobile app 39. CI builds and tests on every push.
 - **Concurrency verified with k6:** 30 simultaneous booking requests against a ticket with known stock. Successes matched the remaining stock exactly, the rest received `409 Conflict`, and nothing oversold. See [`load-test.js`](load-test.js).
 - **What I learned:** pushing correctness into one atomic database statement is simpler and faster than coordinating it in application code, and keeping network calls out of transactions makes failure handling tractable.
 
@@ -154,7 +162,7 @@ Poster images go from the browser straight to S3 (a presigned `PUT`), so two COR
 
 The Floci in `docker-compose.yml` keeps its data in the `floci-data` volume, so the bucket, its CORS rule, the secret and the images survive restarts. `docker compose down -v` deletes them, along with the database: run `terraform -chdir=infra apply` again afterwards (Terraform notices they are gone and recreates them). Don't also run `floci aws start`: both want port 4566.
 
-In production list only the real dashboard origin in both places, never `*`.
+List only the real dashboard origin in both places, never `*`.
 
 **Reading the images (mobile and web).** The Flutter app and the dashboard show a poster with a plain `GET` on `imageUrl`, with no token. On real AWS the bucket must therefore allow public reads, for the image folders only:
 
