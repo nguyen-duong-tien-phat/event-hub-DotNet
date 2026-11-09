@@ -94,7 +94,7 @@ public class EventRepository(AppDbContext db): Repository<Event>(db), IEventRepo
     // revenue once per line. "Sold" and "revenue" mean what EventStatsDto means: confirmed bookings only, fee not included.
     private const string SalesPerEvent = """
         WITH ev AS (
-            SELECT e."Id", e."Title", e."StartsAt", e."Location" FROM "Events" e
+            SELECT e."Id", e."Title", e."StartsAt", e."Location", e."ImageUrl", e."Category" FROM "Events" e
             WHERE @org::text IS NULL OR e."OrganizerId" = @org
         ),
         seats AS (
@@ -116,7 +116,7 @@ public class EventRepository(AppDbContext db): Repository<Event>(db), IEventRepo
             WHERE a."CheckedInAt" IS NOT NULL AND b."EventId" IN (SELECT "Id" FROM ev) GROUP BY b."EventId"
         ),
         per AS (
-            SELECT ev."Id", ev."Title", ev."StartsAt", ev."Location",
+            SELECT ev."Id", ev."Title", ev."StartsAt", ev."Location", ev."ImageUrl", ev."Category",
                 COALESCE(seats.total, 0) AS "TotalQuantity", COALESCE(seats.remaining, 0) AS "RemainingQuantity",
                 COALESCE(sold.qty, 0) AS "TicketsSold", COALESCE(paid.revenue, 0) AS "TicketRevenue",
                 COALESCE(checked.n, 0) AS "CheckedIn"
@@ -146,7 +146,7 @@ public class EventRepository(AppDbContext db): Repository<Event>(db), IEventRepo
             """, Params()).ToListAsync()).Single();
 
         var events = await db.Database.SqlQueryRaw<EventSalesDto>(SalesPerEvent + """
-            SELECT "Id", "Title", "StartsAt", "Location", "TotalQuantity", "RemainingQuantity", "TicketsSold", "TicketRevenue", "CheckedIn"
+            SELECT "Id", "Title", "StartsAt", "Location", "ImageUrl", "Category", "TotalQuantity", "RemainingQuantity", "TicketsSold", "TicketRevenue", "CheckedIn"
             FROM per ORDER BY "StartsAt" DESC, "Id" LIMIT @take OFFSET @skip
             """, Params(new NpgsqlParameter("take", pageSize), new NpgsqlParameter("skip", (page - 1) * pageSize))).ToListAsync();
 
