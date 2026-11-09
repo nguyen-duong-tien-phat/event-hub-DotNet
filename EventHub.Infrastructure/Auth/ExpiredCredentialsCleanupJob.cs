@@ -15,9 +15,9 @@ public class ExpiredCredentialsCleanupJob(IServiceScopeFactory scopeFactory, ILo
                 using var scope = scopeFactory.CreateScope();
                 var cleaner = scope.ServiceProvider.GetRequiredService<ExpiredCredentialsCleaner>();
 
-                var (tokens, codes) = await cleaner.CleanAsync(DateTime.UtcNow);
-                if (tokens + codes > 0) {
-                    logger.LogInformation("Removed {Tokens} expired refresh tokens and {Codes} expired reset codes", tokens, codes);
+                var (tokens, codes, emails) = await cleaner.CleanAsync(DateTime.UtcNow);
+                if (tokens + codes + emails > 0) {
+                    logger.LogInformation("Removed {Tokens} expired refresh tokens, {Codes} expired reset codes and {Emails} old sent-email keys", tokens, codes, emails);
                 }
             } catch (Exception ex) when (ex is not OperationCanceledException) {
                 logger.LogError(ex, "Cleaning up expired credentials failed");

@@ -1,4 +1,3 @@
-using Amazon.SQS;
 using EventHub.BackgroundJobs;
 using EventHub.Core.Email;
 using EventHub.Infrastructure.Email;
@@ -45,13 +44,7 @@ public static class EmailSetup {
             return;
         }
 
-        var serviceUrl = config["Aws:ServiceUrl"];
-        var sqs = string.IsNullOrEmpty(serviceUrl)
-            ? new AmazonSQSClient()
-            : new AmazonSQSClient(new AmazonSQSConfig {
-                ServiceURL = serviceUrl,
-                AuthenticationRegion = Environment.GetEnvironmentVariable("AWS_REGION") ?? "us-east-1"
-            });
+        var sqs = SqsSetup.CreateClient(config);
         var queueUrl = (await sqs.GetQueueUrlAsync(emailQueue)).QueueUrl;   // fails at startup if the queue is missing
 
         services.AddSingleton<IEmailSender>(_ => new SqsEmailSender(sqs, queueUrl));

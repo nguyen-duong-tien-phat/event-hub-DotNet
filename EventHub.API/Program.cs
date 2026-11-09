@@ -13,6 +13,7 @@ builder.AddRedis();
 builder.AddPayments();
 builder.AddAuth();
 await builder.AddEmailAsync();
+await builder.AddRetryQueuesAsync();
 builder.AddFileStorage();
 builder.AddAppServices();
 builder.AddWebDefaults();

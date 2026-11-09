@@ -35,7 +35,8 @@ public class BookingService (
     IPaymentService paymentService,
     TicketCodeSigner? ticketCodes = null,
     IAdmissionRepository? admissions = null,
-    EmailService? emails = null)
+    EmailService? emails = null,
+    IPaymentRetryQueue? paymentRetry = null)
 {
     /// <summary>How long a pending booking keeps its tickets before it can expire.</summary>
     public static readonly TimeSpan HoldDuration = TimeSpan.FromMinutes(15);
@@ -400,7 +401,7 @@ public class BookingService (
             throw;
         }
         // The booking is canceled for good; stopping the payment comes after.
-        await StopPaymentAsync(booking);
+        await StopPaymentOrQueueRetryAsync(booking);
         return booking;
     }
     
@@ -430,7 +431,7 @@ public class BookingService (
             }
             result.Expired++;
             try {
-                await StopPaymentAsync(booking);
+                await StopPaymentOrQueueRetryAsync(booking);
             } catch (Exception ex) {
                 // Canceled already; the next confirm or webhook refunds if it was paid.
                 result.Failures.Add(new ExpiryFailure(booking.Id, ExpiryStep.StopPayment, ex));
@@ -481,6 +482,27 @@ public class BookingService (
         if (!cancelled) {
             await RefundIfPaidAsync(booking);
         }
+    }
+
+    /// <summary>
+    /// <see cref="StopPaymentAsync"/>, but when Stripe fails and a retry queue exists the booking goes there instead
+    /// of failing: it is already cancelled, so the caller has nothing left to undo. Without a queue the error is thrown.
+    /// </summary>
+    private async Task StopPaymentOrQueueRetryAsync(Booking booking) {
+        try {
+            await StopPaymentAsync(booking);
+        } catch when (paymentRetry != null) {
+            await paymentRetry.EnqueueAsync(booking.Id);
+        }
+    }
+
+    /// <summary>
+    /// Tries again to stop or refund the payment of a cancelled booking (called by the payment retry worker).
+    /// Throws when it fails again, so the queue delivers it later. Safe to run twice: Stripe refunds once per booking.
+    /// </summary>
+    public async Task RetryStopPaymentAsync(string bookingId) {
+        var booking = await bookingRepository.GetByIdAsync(bookingId);
+        if (booking is { Status: BookingStatus.Cancelled }) await StopPaymentAsync(booking);
     }
 
     private async Task RefundIfPaidAsync(Booking booking) {

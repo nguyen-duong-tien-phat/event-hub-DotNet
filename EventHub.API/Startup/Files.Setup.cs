@@ -1,6 +1,7 @@
 using Amazon.S3;
 using EventHub.Core.Files;
 using EventHub.Infrastructure.Files;
+using EventHub.Infrastructure.Queues;
 
 namespace EventHub.Startup;
 
@@ -22,7 +23,8 @@ public static class FilesSetup {
                 AuthenticationRegion = config["S3:Region"] ?? "us-east-1",
             }));
         builder.Services.AddSingleton<IFileStorage>(sp => new S3FileStorage(
-            sp.GetRequiredService<IAmazonS3>(), bucket, publicBaseUrl, sp.GetRequiredService<ILogger<S3FileStorage>>()));
+            sp.GetRequiredService<IAmazonS3>(), bucket, publicBaseUrl, sp.GetRequiredService<ILogger<S3FileStorage>>(),
+            sp.GetService<IFileDeleteQueue>()));
         builder.Services.AddSingleton<UploadService>();
     }
 }

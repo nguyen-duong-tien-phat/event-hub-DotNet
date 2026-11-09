@@ -15,4 +15,6 @@ public class SentEmailRepository(AppDbContext db) : ISentEmailRepository {
     }
 
     public Task ReleaseAsync(string key) => db.SentEmails.Where(e => e.Key == key).ExecuteDeleteAsync();
+
+    public Task<int> DeleteOlderThanAsync(DateTime cutoff) => db.SentEmails.Where(e => e.CreatedAt < cutoff).ExecuteDeleteAsync();
 }

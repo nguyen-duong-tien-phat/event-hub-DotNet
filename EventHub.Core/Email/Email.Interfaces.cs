@@ -6,6 +6,9 @@ public interface ISentEmailRepository {
 
     /// <summary>Forgets the key, used when sending failed so a retry can claim it again.</summary>
     Task ReleaseAsync(string key);
+
+    /// <summary>Deletes the keys recorded before <paramref name="cutoff"/>; returns how many.</summary>
+    Task<int> DeleteOlderThanAsync(DateTime cutoff);
 }
 
 public interface IEmailSender {

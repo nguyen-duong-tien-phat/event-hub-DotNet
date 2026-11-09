@@ -14,9 +14,13 @@ data "aws_iam_policy_document" "api_permissions" {
   }
 
   statement {
-    sid       = "EmailQueue"
-    actions   = ["sqs:GetQueueUrl", "sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage"]
-    resources = [aws_sqs_queue.email.arn]
+    sid     = "AppQueues"
+    actions = ["sqs:GetQueueUrl", "sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage"]
+    resources = [
+      aws_sqs_queue.email.arn,
+      aws_sqs_queue.payment_retry.arn,
+      aws_sqs_queue.file_delete.arn,
+    ]
   }
 }
 

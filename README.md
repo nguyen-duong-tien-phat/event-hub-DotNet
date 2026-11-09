@@ -17,6 +17,7 @@
 - **Real payments.** Stripe PaymentIntents, signature-verified webhooks, idempotent confirmation, and automatic refunds when a payment lands after the booking expired.
 - **Safe to retry.** Per-user idempotency keys mean a double-click or network retry returns the original booking instead of creating a second one.
 - **Production-style auth.** Short-lived JWTs, rotating refresh tokens with reuse detection, rate-limited login, and email-code password reset.
+- **Failures that retry instead of getting lost.** If Stripe cannot be reached when a booking is cancelled, or S3 when a poster is deleted, the job goes on an SQS queue and a worker tries again (dead-letter queue after 5 tries), so a refund is not silently dropped.
 - **Emails that never block or double-send.** Password-reset, booking-confirmed and checked-in emails go through an SQS queue with a dead-letter queue, so a slow or broken mail server never fails a request, and a table of sent email keys makes a redelivered message send nothing.
 - **Tamper-proof QR check-in.** Every admitted person is their own ticket row with a random id, an HMAC-signed QR and a short code to type when a QR will not scan. Check-in is one atomic update, so a ticket gets in exactly once, and a booking with a used ticket can no longer be cancelled.
 - **Images that skip the server.** Organizers upload posters straight to S3 with a short-lived presigned URL, so image bytes never pass through the API. Only URLs the API issued are accepted.
@@ -30,7 +31,8 @@
 | Cache / limits | Redis 7 | Cache-aside event list and a token-bucket rate limiter |
 | Payments | Stripe (PaymentIntents + webhooks) | Async confirmation, no DB transaction held across a network call |
 | Auth | JWT + DB-backed refresh tokens | Rotation and reuse detection |
-| Email | SQS queue + SMTP (Floci and Mailpit locally) | Sent from a background worker with retries; each email key is sent once |
+| Queues | SQS (Floci locally) | Email, Stripe stop/refund retry and poster delete retry, each with a dead-letter queue |
+| Email | SMTP (Mailpit locally) | Sent from a queue worker with retries; each email key is sent once |
 | Files | S3 via presigned URLs (Floci locally) | Browsers upload directly; the API only signs and validates |
 | Testing | xUnit, Moq, k6 | Services unit-tested with mocked repositories; k6 for concurrency |
 | Infra | Docker Compose, GitHub Actions | One command for the full stack; CI builds and tests every push |
@@ -58,7 +60,7 @@ flowchart LR
     Infra --> S3[(S3 / Floci)]
     Client -. presigned PUT .-> S3
     Stripe -- webhook --> API
-    Jobs[Background jobs<br/>booking expiry, token cleanup,<br/>email queue worker] --> Infra
+    Jobs[Background jobs<br/>booking expiry, token cleanup,<br/>queue workers: email, payment retry, poster delete] --> Infra
 ```
 
 Dependencies point inward: `API → Core ← Infrastructure`. Core defines the interfaces (`IRepository<>`, `IUnitOfWork`, `IPaymentService`, `ICacheService`, `IRateLimiter`, `IEmailSender`) and Infrastructure implements them, so every business rule is unit-tested with Moq and no database.
@@ -114,7 +116,7 @@ Postgres serializes writes to the row, so no read-then-write race exists. Versio
 
 ## Run locally
 
-Requires Docker and [Terraform](https://developer.hashicorp.com/terraform/install). The compose file runs a Floci container (a local AWS emulator) that holds the event images, the email queue (SQS) and the app's secrets (Secrets Manager); [`infra/`](infra) creates them in it. Copy [`.env.example`](.env.example) to `.env` in the repo root (the defaults are enough), then create `infra/terraform.tfvars` (gitignored) with the four secrets, then:
+Requires Docker and [Terraform](https://developer.hashicorp.com/terraform/install). The compose file runs a Floci container (a local AWS emulator) that holds the event images, the SQS queues (email, payment retry, poster delete) and the app's secrets (Secrets Manager); [`infra/`](infra) creates them in it. Copy [`.env.example`](.env.example) to `.env` in the repo root (the defaults are enough), then create `infra/terraform.tfvars` (gitignored) with the four secrets, then:
 
 ```hcl
 # infra/terraform.tfvars
@@ -129,7 +131,7 @@ git clone git@github.com:nguyen-duong-tien-phat/event-hub-DotNet.git
 cd event-hub-DotNet
 docker compose up -d floci       # the emulator first: Terraform and the API both talk to it
 terraform -chdir=infra init
-terraform -chdir=infra apply     # bucket + CORS rule + IAM role + email queues + the eventhub/app secret
+terraform -chdir=infra apply     # bucket + CORS rule + IAM role + SQS queues + the eventhub/app secret
 docker compose up --build        # API :8080, Swagger :8080/swagger, Mailpit inbox :8025
 dotnet test                      # unit tests, no infrastructure needed
 k6 run load-test.js              # concurrency test (set a JWT and ticketId at the top first)

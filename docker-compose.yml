@@ -34,6 +34,12 @@ services:
       - "${FLOCI_PORT:-4566}:4566"
     volumes:
       - floci-data:/app/data
+    networks:
+      default:
+        aliases:
+          # The API container reaches Floci by the host name the browser uses (S3__ServiceUrl), so its own
+          # S3 calls (deleting a poster) work too. Without this, localhost.floci.io is the container itself.
+          - localhost.floci.io
 
   api:
     build:
@@ -75,6 +81,9 @@ services:
       Aws__ServiceUrl: "http://floci:4566"
       # Queue that emails go through (created by infra/sqs.tf). Empty: send directly.
       Sqs__EmailQueue: ${Sqs__EmailQueue:-eventhub-email}
+      # Retry queues (infra/sqs.tf): a failed Stripe stop/refund and a failed poster delete are tried again.
+      Sqs__PaymentRetryQueue: ${Sqs__PaymentRetryQueue:-eventhub-payment-retry}
+      Sqs__FileDeleteQueue: ${Sqs__FileDeleteQueue:-eventhub-file-delete}
     depends_on:
       - postgres
       - redis
