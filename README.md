@@ -11,6 +11,8 @@
 
 **Try it:** run it locally and open Swagger at `http://localhost:8080/swagger` (see [Run locally](#run-locally)).
 
+> **Note:** this is a local project. It runs only on a developer machine (Docker Compose, with Floci as a local AWS emulator), is not deployed anywhere, and is not meant for production.
+
 ## Highlights
 
 - **Oversell-proof inventory.** One atomic SQL statement decides every reservation, so concurrent requests can't double-sell a ticket, with no locks in application code.
@@ -164,8 +166,3 @@ aws s3api put-bucket-policy --bucket eventhub-images --policy \
 Floci accepts this command but does not enforce read policies (every object is readable locally), so it only matters on real AWS. The mobile app needs no CORS: that rule is only for browsers.
 
 **The host in `S3__PublicBaseUrl` is saved into every event's `imageUrl`.** The default `localhost.floci.io` points at the device itself on a phone or an Android emulator, so the poster will not load there. Before uploading images from a device, set `S3__ServiceUrl` and `S3__PublicBaseUrl` to an address the device can reach (your computer's LAN IP, or `10.0.2.2` for the Android emulator). Changing it later does not rewrite existing events.
-
-## Roadmap
-
-- Webhook and payment-flow integration tests
-- Structured logging throughout
