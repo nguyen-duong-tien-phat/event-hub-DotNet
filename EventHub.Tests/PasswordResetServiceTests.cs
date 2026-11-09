@@ -49,7 +49,8 @@ public class PasswordResetServiceTests {
 
     private PasswordResetService CreateService() => new(
         _codes.Object, _users.Object, _hasher.Object, _refreshTokens.Object,
-        _email.Object, "test-secret", TimeSpan.FromMinutes(30));
+        new EmailService(_users.Object, new Mock<EventHub.Core.Events.IEventRepository>().Object, _email.Object),
+        "test-secret", TimeSpan.FromMinutes(30));
 
     /// <summary>Asks for a code and reads it out of the email, like the user would.</summary>
     private async Task<string> RequestCodeAsync(PasswordResetService service) {

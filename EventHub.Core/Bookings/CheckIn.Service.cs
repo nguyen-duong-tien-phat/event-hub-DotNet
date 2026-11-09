@@ -1,3 +1,4 @@
+using EventHub.Core.Email;
 using EventHub.Core.Events;
 using EventHub.Core.Users;
 
@@ -28,7 +29,8 @@ public class CheckInService(
     TicketCodeSigner signer,
     IBookingRepository bookingRepository,
     IEventRepository eventRepository,
-    IAdmissionRepository admissions)
+    IAdmissionRepository admissions,
+    EmailService? emails = null)
 {
     /// <param name="code">The QR value, or the short code typed by hand.</param>
     public async Task<CheckInResult> CheckInAsync(string? code, string staffId, UserRole staffRole) {
@@ -54,7 +56,10 @@ public class CheckInService(
 
         if (booking.Status != BookingStatus.Confirmed) return result(CheckInStatus.NotPaid, null);
 
-        if (await admissions.TryCheckInAsync(admission.Id, staffId)) return result(CheckInStatus.Admitted, DateTime.UtcNow);
+        if (await admissions.TryCheckInAsync(admission.Id, staffId)) {
+            if (emails != null) await emails.CheckedInAsync(booking, admission, ev);
+            return result(CheckInStatus.Admitted, DateTime.UtcNow);
+        }
 
         var first = await admissions.FindByIdAsync(admission.Id);
         return result(CheckInStatus.AlreadyUsed, first?.CheckedInAt);

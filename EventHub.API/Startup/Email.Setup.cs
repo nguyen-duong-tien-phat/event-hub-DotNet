@@ -15,6 +15,9 @@ public static class EmailSetup {
         var config = builder.Configuration;
         var services = builder.Services;
 
+        // What the app calls to send an email: one method per email (see EmailService).
+        services.AddScoped<EmailService>();
+
         // "raw": SMTP, or the log when no mail server is configured.
         var smtpHost = config["Smtp:Host"];
         if (!string.IsNullOrEmpty(smtpHost)) {

@@ -11,7 +11,7 @@ public class PasswordResetService(
     IUserRepository users,
     IPasswordHasher<User> passwordHasher,
     IRefreshTokenRepository refreshTokens,
-    IEmailSender emailSender,
+    EmailService emails,
     string secret,
     TimeSpan lifetime)
 {
@@ -37,12 +37,7 @@ public class PasswordResetService(
         await codes.AddAsync(row);
         await codes.SaveChangesAsync();
 
-        await emailSender.SendAsync(
-            user.Email,
-            "Your Event Hub reset code",
-            $"Your code to reset your Event Hub password is {code}.\n\n" +
-            $"It works for {(int)lifetime.TotalMinutes} minutes. If you didn't ask for it, you can ignore this email.",
-            $"password-reset:{row.Id}");
+        await emails.PasswordResetAsync(user, code, lifetime, row.Id);
     }
 
     /// <summary>Sets a new password when the code is right. False for every kind of failure.</summary>

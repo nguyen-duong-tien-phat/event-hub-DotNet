@@ -1,3 +1,4 @@
+using EventHub.Core.Email;
 using EventHub.Core.Common;
 using EventHub.Core.Events;
 using EventHub.Core.Payments;
@@ -33,7 +34,8 @@ public class BookingService (
     IUnitOfWork unitOfWork,
     IPaymentService paymentService,
     TicketCodeSigner? ticketCodes = null,
-    IAdmissionRepository? admissions = null)
+    IAdmissionRepository? admissions = null,
+    EmailService? emails = null)
 {
     /// <summary>How long a pending booking keeps its tickets before it can expire.</summary>
     public static readonly TimeSpan HoldDuration = TimeSpan.FromMinutes(15);
@@ -118,7 +120,7 @@ public class BookingService (
         }
         
         if (totalPrice == 0) {
-            await IssueAdmissionsAsync(booking);
+            await OnConfirmedAsync(booking);
             return new BookingWithPaymentResult { Booking = booking, ClientSecret = string.Empty };
         }
 
@@ -186,8 +188,10 @@ public class BookingService (
         return responses;
     }
 
-    private async Task IssueAdmissionsAsync(Booking booking) {
+    /// <summary>Runs when a booking becomes Confirmed (free create, the app's confirm, the Stripe webhook).</summary>
+    private async Task OnConfirmedAsync(Booking booking) {
         if (admissions != null) await admissions.IssueAsync(booking);
+        if (emails != null) await emails.BookingConfirmedAsync(booking);
     }
 
     /// <summary>
@@ -272,7 +276,7 @@ public class BookingService (
             booking.Status = BookingStatus.Confirmed;
             bookingRepository.Update(booking);
             await bookingRepository.SaveChangesAsync();
-            await IssueAdmissionsAsync(booking);
+            await OnConfirmedAsync(booking);
         }
 
         if (booking.Status == BookingStatus.Cancelled) {
@@ -451,7 +455,7 @@ public class BookingService (
         booking.Status = BookingStatus.Confirmed;
         bookingRepository.Update(booking);
         await bookingRepository.SaveChangesAsync();
-        await IssueAdmissionsAsync(booking);
+        await OnConfirmedAsync(booking);
     }
 
     public async Task HandlePaymentFailed(string paymentIntentId) {

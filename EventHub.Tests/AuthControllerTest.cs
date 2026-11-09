@@ -14,7 +14,8 @@ public class AuthControllerTest {
     private static PasswordResetService NoResetService(Mock<IUserRepository> userRepo) => new(
         new Mock<IPasswordResetRepository>().Object, userRepo.Object,
         new Mock<IPasswordHasher<User>>().Object, new Mock<IRefreshTokenRepository>().Object,
-        new Mock<IEmailSender>().Object, "test-secret", TimeSpan.FromMinutes(30));
+        new EmailService(userRepo.Object, new Mock<EventHub.Core.Events.IEventRepository>().Object, new Mock<IEmailSender>().Object),
+        "test-secret", TimeSpan.FromMinutes(30));
 
     [Fact]
     public async Task Login_WhenRateLimited_Returns429() {

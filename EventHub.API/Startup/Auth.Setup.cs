@@ -40,7 +40,7 @@ public static class AuthSetup {
             sp.GetRequiredService<IUserRepository>(),
             sp.GetRequiredService<IPasswordHasher<User>>(),
             sp.GetRequiredService<IRefreshTokenRepository>(),
-            sp.GetRequiredService<IEmailSender>(),
+            sp.GetRequiredService<EmailService>(),
             jwtKey,
             TimeSpan.FromMinutes(30)));
 
