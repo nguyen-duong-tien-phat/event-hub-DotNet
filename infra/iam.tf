@@ -12,6 +12,12 @@ data "aws_iam_policy_document" "api_permissions" {
     actions   = ["secretsmanager:GetSecretValue"]
     resources = [aws_secretsmanager_secret.app.arn]
   }
+
+  statement {
+    sid       = "EmailQueue"
+    actions   = ["sqs:GetQueueUrl", "sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage"]
+    resources = [aws_sqs_queue.email.arn]
+  }
 }
 
 # Who may become this role: ECS tasks (lesson 5). A role is a hat; the trust policy says who can wear it.

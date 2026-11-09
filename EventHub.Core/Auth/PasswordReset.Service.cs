@@ -29,18 +29,20 @@ public class PasswordResetService(
         await codes.InvalidateAllForUserAsync(user.Id);
 
         var code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
-        await codes.AddAsync(new PasswordResetCode {
+        var row = new PasswordResetCode {
             UserId = user.Id,
             CodeHash = Hash(user.Id, code),
             ExpiresAt = DateTime.UtcNow + lifetime,
-        });
+        };
+        await codes.AddAsync(row);
         await codes.SaveChangesAsync();
 
         await emailSender.SendAsync(
             user.Email,
             "Your Event Hub reset code",
             $"Your code to reset your Event Hub password is {code}.\n\n" +
-            $"It works for {(int)lifetime.TotalMinutes} minutes. If you didn't ask for it, you can ignore this email.");
+            $"It works for {(int)lifetime.TotalMinutes} minutes. If you didn't ask for it, you can ignore this email.",
+            $"password-reset:{row.Id}");
     }
 
     /// <summary>Sets a new password when the code is right. False for every kind of failure.</summary>

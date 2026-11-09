@@ -12,7 +12,7 @@ namespace EventHub.Infrastructure.Email;
 public class SmtpEmailSender(string host, int port, string from, string? user = null, string? password = null)
     : IEmailSender
 {
-    public async Task SendAsync(string to, string subject, string body) {
+    public async Task SendAsync(string to, string subject, string body, string key) {
         var message = new MimeMessage();
         message.From.Add(MailboxAddress.Parse(from));
         message.To.Add(MailboxAddress.Parse(to));

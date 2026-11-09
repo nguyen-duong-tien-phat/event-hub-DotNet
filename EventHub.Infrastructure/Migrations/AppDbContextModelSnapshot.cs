@@ -197,6 +197,19 @@ namespace EventHub.Infrastructure.Migrations
                     b.ToTable("Bookings");
                 });
 
+            modelBuilder.Entity("EventHub.Core.Email.SentEmail", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("SentEmails");
+                });
+
             modelBuilder.Entity("EventHub.Core.Events.Event", b =>
                 {
                     b.Property<string>("Id")

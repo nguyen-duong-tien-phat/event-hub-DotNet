@@ -1,6 +1,7 @@
 using EventHub.Core.Auth;
 using EventHub.Core.Bookings;
 using EventHub.Core.Common;
+using EventHub.Core.Email;
 using EventHub.Core.Events;
 using EventHub.Core.SavedEvents;
 using EventHub.Core.Tickets;
@@ -18,6 +19,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options): DbContext(opt
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<PasswordResetCode> PasswordResetCodes => Set<PasswordResetCode>();
     public DbSet<Admission> Admissions => Set<Admission>();
+    public DbSet<SentEmail> SentEmails => Set<SentEmail>();
     
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) {
         var entries = ChangeTracker.Entries<BaseEntity>()
@@ -107,6 +109,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options): DbContext(opt
             .WithMany()
             .HasForeignKey(s => s.UserId)
             .OnDelete(DeleteBehavior.Cascade);
+        
+        modelBuilder.Entity<SentEmail>().HasKey(e => e.Key);
 
         base.OnModelCreating(modelBuilder);
     }

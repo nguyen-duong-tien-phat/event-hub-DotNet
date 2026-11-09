@@ -42,8 +42,8 @@ public class PasswordResetServiceTests {
             .Callback(() => _stored.ForEach(c => c.UsedAt ??= DateTime.UtcNow))
             .Returns(Task.CompletedTask);
 
-        _email.Setup(e => e.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
-            .Callback<string, string, string>((_, _, body) => _sentBody = body)
+        _email.Setup(e => e.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .Callback<string, string, string, string>((_, _, body, _) => _sentBody = body)
             .Returns(Task.CompletedTask);
     }
 
@@ -65,7 +65,7 @@ public class PasswordResetServiceTests {
         var row = Assert.Single(_stored);
         Assert.DoesNotContain(code, row.CodeHash);
         Assert.True(row.ExpiresAt > DateTime.UtcNow.AddMinutes(29));
-        _email.Verify(e => e.SendAsync("a@b.c", It.IsAny<string>(), It.IsAny<string>()), Times.Once);
+        _email.Verify(e => e.SendAsync("a@b.c", It.IsAny<string>(), It.IsAny<string>(), $"password-reset:{row.Id}"), Times.Once);
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class PasswordResetServiceTests {
         await CreateService().RequestAsync("nobody@example.com");
 
         Assert.Empty(_stored);
-        _email.Verify(e => e.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        _email.Verify(e => e.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 
     [Fact]

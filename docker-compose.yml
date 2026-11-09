@@ -73,6 +73,8 @@ services:
       Aws__SecretId: ${Aws__SecretId:-eventhub/app}
       # Address of Floci inside the compose network (the .env value, localhost, only works outside Docker).
       Aws__ServiceUrl: "http://floci:4566"
+      # Queue that emails go through (created by infra/sqs.tf). Empty: send directly.
+      Sqs__EmailQueue: ${Sqs__EmailQueue:-eventhub-email}
     depends_on:
       - postgres
       - redis
