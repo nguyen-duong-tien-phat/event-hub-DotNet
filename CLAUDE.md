@@ -105,3 +105,9 @@ PostgreSQL via EF Core/Npgsql. `Program.cs` builds the `NpgsqlDataSource` once a
 ## Commits
 
 Do not add attribution lines to commit messages or pull request descriptions: no `Co-Authored-By: Claude ...`, no "Generated with Claude Code" or similar. Write them as plain text.
+
+## Code lookup: graphify first
+
+- Read the graph first (`graphify-out/GRAPH_REPORT.md` and the graphify skill: query, path, explain) every time you need to understand, locate or check source code; open the files it points to afterwards. No blind grep/find sweeps, and tell subagents to use graphify too.
+- Compare the graph date (`graphify-out/graph.json`) with `git log -1`; if code changed since, run `graphify update .` first (code only, no LLM cost).
+- After finishing any new feature (endpoint, service, entity, job, screen, or a change in how pieces connect), run `graphify update .` before the final reply. `graphify-out/` is gitignored; never commit it.
